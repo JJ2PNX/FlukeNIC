@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Info</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+function loadSidebar() {
+  fetch('sidebar.html')
+    .then(response => response.text())
+    .then(data => {
+        document.getElementById('sidebar').innerHTML = data;
+        highlightActiveLink();
+    })
+    .catch(error => console.error('Error loading sidebar:', error));
+}
+
+function highlightActiveLink() {
+  const pageId = 'info';
+  const links = document.querySelectorAll('.sidebar-link');
+  links.forEach(link => {
+    if (link.getAttribute('id') === pageId) {
+      link.classList.add('active');
+    }
+  });
+}
+
+function loadItem(name, id) {
+  fetch(`/info?${name}`)
+    .then(response => {
+      if (!response.ok) {
+        return Promise.reject(`HTTP error! status: ${response.status}`);
+      }
+      return response.text();
+    })
+    .then(data => {
+      document.getElementById(id).textContent = data;
+    })
+    .catch(error => console.error('Error loadItem:', error));
+}
+
+function loadInfo() {
+  const targets = ['version', 'uptime'];
+  targets.forEach(item => {
+    loadItem(item, item);
+  });
+}
+
+function btnDebug(item) {
+  loadItem(item, "debugResult");
+}
+
+window.onload = function() {
+  loadSidebar();
+  loadInfo();
+};
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div id="sidebar"></div>
+    <div class="content">
+      <fieldset><legend>Info</legend>
+        Version:<span id="version"></span>
+        <a href="/ota/">OTA update</a><br>
+        Visit <a href="http://github.com/" target="_blank">Github</a><br>
+        Uptime:<span id="uptime"></span>
+      </fieldset>
+      <fieldset><legend>Debug</legend>
+        <button id="btnLastBytes" onclick="btnDebug('lastBytes')">Last bytes</button>
+        <button id="btnMsgCount" onclick="btnDebug('msgCount')">Msg count</button>
+        <button id="btnTaskList" onclick="btnDebug('taskList')">Task list</button>
+        <button id="btnFreeHeap" onclick="btnDebug('freeHeap')">Free heap</button>
+        <pre id="debugResult"></pre>
+      </fieldset>
+    </div>
+  </div>
+</body>
+</html>

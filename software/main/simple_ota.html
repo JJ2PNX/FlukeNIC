@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script>
+function uploadFirmware(which) {
+  let fileInput;
+  if(which === "firm"){
+    fileInput = document.getElementById('fileFirm');
+  } else {
+    fileInput = document.getElementById('fileSpiffs');
+  }
+  const file = fileInput.files[0];
+  const result = document.getElementById('result');
+
+  if (!file) {
+    alert("Select file");
+    return;
+  }
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", `/ota/${which}`, true);
+  xhr.setRequestHeader("Content-Type", "application/octet-stream");
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const percent = (e.loaded / e.total * 100).toFixed(1);
+      result.textContent = `Uploading: ${percent}% (${e.loaded}/${e.total} bytes)`;
+    }
+  };
+
+  xhr.onload = () => {
+    result.textContent += `\nDone. Status: ${xhr.status}`;
+  };
+
+  xhr.onerror = () => {
+    result.textContent += `\nError occurred.`;
+  };
+
+  xhr.send(file);
+}
+</script></head>
+<body>
+  Firmware:
+  <input type="file" id="fileFirm" accept=".bin">
+  <button onclick='uploadFirmware("firm")'>Upload</button><br>
+  Spiffs:
+  <input type="file" id="fileSpiffs" accept=".bin">
+  <button onclick='uploadFirmware("spiffs")'>Upload</button><br>
+  <div id="result"></div>
+</body>
+</html>

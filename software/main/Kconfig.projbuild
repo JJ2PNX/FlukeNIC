@@ -1,0 +1,11 @@
+menu "Flukenic Configuration"
+    comment "Flukenic Configuration"
+
+    config LWIP_NETIF_HOSTNAME
+        bool "Define LWIP_NETIF_HOSTNAME"
+        default y
+
+    config FLUKENIC_LOG_SDCARD
+        bool "Save console log to sdcard"
+        default n
+endmenu

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+
+function loadSidebar() {
+  fetch('/sidebar.html')
+    .then(response => response.text())
+    .then(data => {
+      document.getElementById('sidebar').innerHTML = data;
+      highlightActiveLink();
+    })
+    .catch(error => console.error('Error loading sidebar:', error));
+}
+
+function highlightActiveLink() {
+  const pageId = 'settings';
+  const links = document.querySelectorAll('.sidebar-link');
+  links.forEach(link => {
+    if (link.getAttribute('id') === pageId) {
+      link.classList.add('active');
+    }
+  });
+}
+
+function setCurrentValues() {
+  document.getElementById('model').value = currentValues.model;
+  document.getElementById('hostname').value = currentValues.hostname;
+  if(currentValues.ntp === 1) document.getElementById('ntp').checked = true;
+  document.getElementById('ntp_server').value = currentValues.ntp_server;
+  document.getElementById('timezone').value = currentValues.timezone;
+  if(currentValues.log_local === 1) document.getElementById('log_local').checked = true;
+  document.getElementById('log_rot').value = currentValues.log_rot;
+  document.getElementById('log_lines').value = currentValues.log_lines;
+  if(currentValues.log_flush === 1) document.getElementById('log_flush').checked = true;
+  if(currentValues.log_skipov === 1) document.getElementById('log_skipov').checked = true;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('settings_form');
+  form.querySelectorAll('input, select, textarea').forEach(element => {
+    element.addEventListener('input', (e) => {
+      const target = e.target;
+      const name = target.name;
+      if (!name) return;
+      let value;
+      if (target.type === 'checkbox') {
+        value = target.checked ? 1 : 0;
+      } else if (target.tagName === 'SELECT') {
+        value = target.value;
+      } else {
+        value = target.value;
+      }
+      currentValues[name] = value;
+      console.log(`update: ${name} = ${value}`);
+    });
+  });
+});
+
+function toQueryString(params) {
+  return Object.entries(params)
+    .map(([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(val)}`)
+    .join('&');
+}
+
+function btnApplyCurrentValues() {
+  const queryString = toQueryString(currentValues);
+  const url = `/settings?${queryString}`;
+  fetch(url)
+    .then(response => {
+      if (response.status === 200) {
+        document.getElementById('apply-status').textContent = 'Success';
+        return;
+      } else {
+        throw new Error(`Error: ${response.status}`);
+      }
+    })
+    .catch(error => {
+      console.error(error);
+      alert('Error');
+    });
+}
+
+function startTimeDisplay() {
+  function updateTime() {
+    const date = new Date(currentValues.time * 1000);
+    const formattedTime = date.toLocaleString();
+    document.getElementById('time').innerText = formattedTime;
+    currentValues.time++;
+  }
+  updateTime();
+  setInterval(updateTime, 1000);
+}
+
+function btnSetPcTime() {
+  currentValues.time = Math.floor(Date.now() / 1000);
+}
+
+window.onload = function() {
+  startTimeDisplay();
+  loadSidebar();
+  setCurrentValues();
+}
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div id="sidebar"></div>
+    <div class="content">
+      <form id="settings_form">
+        <fieldset><legend>Fluke</legend>
+          <label for="model">Model</label>
+          <select id="model" name="model">
+            <option value="1">8840A</option>
+            <option value="0">8842A</option>
+          </select><br>
+        </fieldset>
+        <fieldset><legend>Network</legend>
+          <label for="hostname">Hostname</label>
+          <input type="text" id="hostname" name="hostname">
+        </fieldset>
+        <fieldset><legend>Date/Time</legend>
+          <div>
+            <label for="time">Current Date/Time</label>
+            <span id="time" style="border: 1px solid black; padding: 4px;"></span>
+            <button id="set_time" type="button" onclick="btnSetPcTime()">Set PC Time</button>
+          </div>
+            <label for="ntp">Network Time</label>
+            <input type="checkbox" id="ntp" name="ntp">Use<br>
+            <label for="ntp_server">Time server</label>
+            <input type="text" id="ntp_server" name="ntp_server"><br>
+            <label for="timezone">Timezone</label>
+            <input type="text" id="timezone" name="timezone">
+            <a href="https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv" target="_blank">HERE</a> for list of timezone strings
+        </fieldset>
+        <fieldset><legend>Logging</legend>
+          <label for="log_local">LOCAL key to start/stop</label>
+          <input type="checkbox" id="log_local" name="log_local">Use<br>
+          <label for="log_rot">Log rotation</label>
+          <select id="log_rot" name="log_rot">
+            <option value="0">Off</option>
+            <option value="1">Hourly</option>
+            <option value="2">Daily</option>
+            <option value="3">Lines</option>
+          </select><br>
+          <label for="log_lines">Rotaion Lines</label>
+          <input type="number" id="log_lines" name="log_lines"><br>
+          <label for="log_flush">Flush every line</label>
+          <input type="checkbox" id="log_flush" name="log_flush">Use (Record loss may occur when used with FAST rate)<br>
+          <label for="log_skipov">Skip overrange</label>
+          <input type="checkbox" id="log_skipov" name="log_skipov">Use<br>
+        </fieldset>
+        <button id="apply" type="button" onclick="btnApplyCurrentValues()">Apply</button>
+        <span id="apply-status" style="margin-left: 10px; color: green;"></span>
+      </form>
+    </div> <!-- content -->
+  </div> <!-- container -->
+  <!-- Dynamic genarated contents here -->
