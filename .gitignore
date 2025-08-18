@@ -1,5 +1,5 @@
-software/build/
-software/sdkconfig.old
-software/dependencies.lock
-software/managed_components/
+firmware/build/
+firmware/sdkconfig.old
+firmware/dependencies.lock
+firmware/managed_components/
 .vscode/

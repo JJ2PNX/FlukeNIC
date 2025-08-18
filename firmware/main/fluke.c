@@ -197,7 +197,7 @@ static void hostmsg_64(void)
 // Host msg 0x67 Measured value, heart of the project
 static void hostmsg_67(void)
 {
-  int count = 0;
+    int count = 0;
     bool neg = false;
     bool over = false;
     // Special care for the top digit

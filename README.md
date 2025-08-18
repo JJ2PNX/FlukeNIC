@@ -10,6 +10,8 @@ I developed built-in web control and logger card that replaces the original GPIB
 NIC ... acronym of Network Interface Card.
 
 ![ScreenShot1](images/screenshot1.png)
+![pcb1](images/pcb1.jpg)
+![cutout1](images/cutout1.jpg)
 ---
 
 ## Features of This Card
@@ -23,13 +25,13 @@ NIC ... acronym of Network Interface Card.
 ## How to Get
 
 ### 1. Hardware
-Currently, no preassembled units or kits are available. Please build from the PCB.  
+Currently, no pre-assembled units or kits are available. Please build from the PCB.  
 PCB fabrication files (UnitA/B.zip) are for JLCPCB.  
-All necessary design materials are here.
+All necessary design materials are in the hardware directory.
 
-### 2. Software
+### 2. Firmware
 To program the ESP32, you’ll need to set up the ESP-IDF environment.  
-Download and build the `flukenic` project, then download to the ESP32 using a USB-C cable.  
+Git clone and 'idf.py build' in the firmware directory, then download to the ESP32 using a USB-C cable.  
 Once written, future updates can be done via OTA.
 
 ---

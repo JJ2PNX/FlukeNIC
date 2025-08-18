@@ -32,6 +32,9 @@
 #define RTCDEV_ADDR         0x51
 #define BCD2BIN(X)          ((((X)>>4)*10) + ((X)&0xF))
 #define BIN2BCD(X)          (((X)/10)<<4 | (X)%10)
+#ifndef MAX
+#define MAX(a,b)            ((a)>(b) ? (a) : (b))
+#endif
 
 static const char *TAG = "RTC2129";
 static i2c_master_dev_handle_t hdev;
@@ -88,11 +91,10 @@ esp_err_t rtc_pcf2129_gettime(struct tm *stm)
     stm->tm_sec = BCD2BIN(buff[0] & 0x7F);
     stm->tm_min = BCD2BIN(buff[1] & 0x7F);
     stm->tm_hour = BCD2BIN(buff[2] & 0x3F);
-    stm->tm_mday = BCD2BIN(buff[3] & 0x3F);
+    stm->tm_mday = MAX(BCD2BIN(buff[3] & 0x3F), 1);
     stm->tm_wday = buff[4] & 0x07;
-    stm->tm_mon = BCD2BIN(buff[5] & 0x1F) - 1;
-    stm->tm_year = BCD2BIN(buff[6]);
-    stm->tm_year += 100;
+    stm->tm_mon = MAX((BCD2BIN(buff[5] & 0x1F) - 1), 0);
+    stm->tm_year = BCD2BIN(buff[6]) + 100;
 
     char strftime_buf[64];
     strftime(strftime_buf, sizeof(strftime_buf), "%c", stm);

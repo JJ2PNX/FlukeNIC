@@ -7,7 +7,7 @@ static const char *TAG = "Settings";
 #define NVS_NAMESPACE "Settings"
 
 struct settings_st settings = {
-    .flags = FL_NTPUSE|FL_LOGLOCAL|FL_LOGFLUSH,
+    .flags = FL_NTPUSE|FL_LOGLOCAL,
     .hostname = "flukenic",
     .ntp_server = "time.nist.gov",
     .timezone = "GMT0",
