@@ -27,11 +27,11 @@ NIC ... acronym of Network Interface Card.
 ### 1. Hardware
 Currently, no pre-assembled units or kits are available. Please build from the PCB.  
 PCB fabrication files (UnitA/B.zip) are for JLCPCB.  
-All necessary design materials are in the hardware directory.
+All necessary design materials are in the *hardware* directory.
 
 ### 2. Firmware
 To program the ESP32, you’ll need to set up the ESP-IDF environment.  
-Git clone and 'idf.py build' in the firmware directory, then download to the ESP32 using a USB-C cable.  
+Git clone and *idf.py build* in the *firmware* directory, then download to the ESP32 using a USB-C cable.  
 Once written, future updates can be done via OTA.
 
 ---
