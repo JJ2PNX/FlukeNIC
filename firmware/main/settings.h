@@ -6,13 +6,15 @@
 
 #define HOST_SIZE 64
 #define TZ_SIZE 32
+#define IP_SIZE 32
 
 typedef enum {
     FL_8840A = 0x01,
     FL_NTPUSE = 0x02,
     FL_LOGLOCAL = 0x04,
     FL_LOGFLUSH = 0x08,
-    FL_LOGSKIPOV = 0x10
+    FL_LOGSKIPOV = 0x10,
+    FL_UDPOUT = 0x20
 } settings_flags_t;
 
 typedef enum {
@@ -29,6 +31,9 @@ struct settings_st {
     char timezone[TZ_SIZE];
     uint32_t log_lines;
     uint8_t log_rot;
+    char peer_ip[IP_SIZE];
+    uint16_t peer_port;
+    uint16_t local_port;
 };
 
 extern struct settings_st settings;

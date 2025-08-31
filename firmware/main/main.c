@@ -36,6 +36,7 @@
 #include "nettime.h"
 #include "settings.h"
 #include "logger.h"
+#include "dataout.h"
 
 #define GPIO_LED    32
 #define GPIO_EVIN   04
@@ -227,6 +228,7 @@ void app_main(void)
                 //ESP_LOGI(TAG, "EVENT_MEAS count=%d, range=%d", event.meas.count, event.meas.range);
                 ws_send_fluke_event(server, event);
                 logger_record(&event, &config_last);
+                dataout_send(&event, &config_last);
                 break;
             case EVENT_CONFIG:
                 ESP_LOGI(TAG, "EVENT_CONFIG func=%d, range=%d, speed=%d, flags=%d", 

@@ -101,22 +101,22 @@ void logger_record(fluke_event_t *event, fluke_config_t *config)
         logger_start();
     }
     log_prevtt = local_tt;
+
+    double value;
+    int decimal;
+    if(event->meas.over){
+        value = (event->meas.count > 0) ? 9.99999E9 : -9.99999E9; // Overrange value
+        decimal = 0;
+    } else {
+        value = (float)event->meas.count * auxinfo->lsb;
+        decimal = auxinfo->decimal;
+    }
  
     // Timestamp format YY/MM/DD hh:mm:ss.sss
-    if(event->meas.over){
-        // Overrange
-        const double value = 9.99999E9; // Overrange value
-        fprintf(fplog, "%02d/%02d/%02d %02d:%02d:%02d.%03ld,%f,%s\n",
-            stm.tm_year %100, stm.tm_mon +1, stm.tm_mday,
-            stm.tm_hour, stm.tm_min, stm.tm_sec, event->time.tv_usec / 1000,
-            event->meas.count > 0 ? value : -value, auxinfo->funcname);
-    } else {
-        // Normal
-        fprintf(fplog, "%02d/%02d/%02d %02d:%02d:%02d.%03ld,%.*f,%s\n",
-            stm.tm_year %100, stm.tm_mon +1, stm.tm_mday,
-            stm.tm_hour, stm.tm_min, stm.tm_sec, event->time.tv_usec / 1000,
-            auxinfo->decimal, (float)event->meas.count * auxinfo->lsb, auxinfo->funcname);
-    }
+    fprintf(fplog, "%02d/%02d/%02d %02d:%02d:%02d.%03ld,%.*f,%s\n",
+        stm.tm_year %100, stm.tm_mon +1, stm.tm_mday,
+        stm.tm_hour, stm.tm_min, stm.tm_sec, event->time.tv_usec / 1000,
+        decimal, value, auxinfo->funcname);
 
     if(settings.flags & FL_LOGFLUSH){
         fflush(fplog);

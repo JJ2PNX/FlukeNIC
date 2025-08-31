@@ -38,6 +38,11 @@ function setCurrentValues() {
   document.getElementById('log_lines').value = currentValues.log_lines;
   if(currentValues.log_flush === 1) document.getElementById('log_flush').checked = true;
   if(currentValues.log_skipov === 1) document.getElementById('log_skipov').checked = true;
+  if(currentValues.udpout ===1) document.getElementById('udpout').checked = true;
+  document.getElementById('peer_ip').value = currentValues.peer_ip;
+  checkIPv4('peer_ip');
+  document.getElementById('peer_port').value = currentValues.peer_port;
+  document.getElementById('local_port').value = currentValues.local_port;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -100,6 +105,16 @@ function btnSetPcTime() {
   currentValues.time = Math.floor(Date.now() / 1000);
 }
 
+function checkIPv4(id) {
+  const elem = document.getElementById(id);
+  const regex = /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}$/;
+  if (regex.test(elem.value)) {
+    elem.style.color = "";
+  } else {
+    elem.style.color = "red";
+  }
+}
+
 window.onload = function() {
   startTimeDisplay();
   loadSidebar();
@@ -153,6 +168,16 @@ window.onload = function() {
           <input type="checkbox" id="log_flush" name="log_flush">Use (Record loss may occur when used with FAST rate)<br>
           <label for="log_skipov">Skip overrange</label>
           <input type="checkbox" id="log_skipov" name="log_skipov">Use<br>
+        </fieldset>
+        <fieldset><legend>UDP Data output</legend>
+          <label for="udpout">UDP Data output</label>
+          <input type="checkbox" id="udpout" name="udpout">Use<br>
+          <label for="peer_ip">Peer ip</label>
+          <input type="text" id="peer_ip" name="peer_ip" oninput="checkIPv4('peer_ip')">
+          <label for="peer_port">Peer port</label>
+          <input type="number" min=0 max=65535 id="peer_port" name="peer_port"><br>
+          <label for="local_port">Local port</label>
+          <input type="number" min=0 max=65535 id="local_port" name="local_port">
         </fieldset>
         <button id="apply" type="button" onclick="btnApplyCurrentValues()">Apply</button>
         <span id="apply-status" style="margin-left: 10px; color: green;"></span>

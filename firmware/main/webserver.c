@@ -11,12 +11,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <esp_log.h>
 #include <esp_http_server.h>
 #include <sys/time.h>
 #include "esp_event.h"
 #include "esp_check.h"
 #include "esp_timer.h"
+#include "esp_idf_version.h"
+#include "esp_chip_info.h"
+#include "esp_flash.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "fluke.h"
@@ -35,19 +39,25 @@
 
 #define EXAMPLE_HTTP_QUERY_KEY_MAX_LEN  (64)
 
+#ifndef MIN
+#define MIN(a,b)  (((a)<(b)) ? (a):(b))
+#endif
+
 static const char *TAG = "Http";
 static const char *Version = "1.00";
 
 ///////////////////////////////////////////////////////////////////////
 // Common
-static int hex_to_int(char c) {
+static int hex_to_int(char c)
+{
     if ('0' <= c && c <= '9') return c - '0';
     if ('A' <= c && c <= 'F') return c - 'A' + 10;
     if ('a' <= c && c <= 'f') return c - 'a' + 10;
     return -1;
 }
 
-static int url_decode(char *dest, size_t dest_size, const char *src) {
+static int url_decode(char *dest, size_t dest_size, const char *src)
+{
     size_t i = 0;
     while (*src && i + 1 < dest_size) {
         if (*src == '%' && isxdigit((unsigned char)src[1]) && isxdigit((unsigned char)src[2])) {
@@ -80,7 +90,7 @@ static int httpd_write(void *cookie, const char *data, int len)
 // Info
 static void info_version(FILE *fp)
 {
-    fputs(Version, fp);
+    fprintf(fp, "%s (Build %s %s)", Version, __DATE__, __TIME__);
 }
 
 static void info_uptime(FILE *fp)
@@ -117,6 +127,20 @@ static void info_freeHeap(FILE *fp)
     fprintf(fp, "esp_get_minimum_free_heap_size(): %ld", esp_get_minimum_free_heap_size());
 }
 
+static void info_idfver(FILE *fp)
+{
+    fputs(esp_get_idf_version(), fp);
+}
+
+static void info_chipinfo(FILE *fp)
+{
+    esp_chip_info_t chip_info;
+    esp_chip_info(&chip_info);
+    uint32_t size;
+    esp_flash_get_size(NULL, &size);
+    fprintf(fp, "model: %d, rev:%d, flash:%ldMB", chip_info.model, chip_info.revision, size/1024/1024);
+}
+
 static struct info_procs_st {
     const char *key;
     void (*func)(FILE *fp);
@@ -127,6 +151,8 @@ static struct info_procs_st {
     {"msgCount",    info_msgCount},
     {"taskList",    info_taskList},
     {"freeHeap",    info_freeHeap},
+    {"idfver",      info_idfver},
+    {"chipinfo",    info_chipinfo},
     {NULL,          NULL}
 };
 
@@ -241,6 +267,28 @@ static esp_err_t settings_handler(httpd_req_t *req)
                     settings.flags |= FL_LOGSKIPOV;
                 }
             }
+            // UDP Data output
+            if (httpd_query_key_value(buf, "udpout", param, sizeof(param)) == ESP_OK) {
+                if(param[0] == '0'){
+                    settings.flags &= ~FL_UDPOUT;
+                } else {
+                    settings.flags |= FL_UDPOUT;
+                }
+            }
+            // Peer ip
+            if (httpd_query_key_value(buf, "peer_ip", param, sizeof(param)) == ESP_OK) {
+                url_decode(dec_param, sizeof(dec_param), param);
+                strncpy(settings.peer_ip, dec_param, sizeof(settings.peer_ip) -1);
+                settings.peer_ip[sizeof(settings.peer_ip) -1] = '\0';
+            }
+            // Peer port
+            if (httpd_query_key_value(buf, "peer_port", param, sizeof(param)) == ESP_OK) {
+                settings.peer_port = MIN(atoi(param), UINT16_MAX);
+            }
+            // Local port
+            if (httpd_query_key_value(buf, "local_port", param, sizeof(param)) == ESP_OK) {
+                settings.local_port = MIN(atoi(param), UINT16_MAX);
+            }
             settings_save();
         }
         free(buf);
@@ -293,7 +341,19 @@ static esp_err_t settings_handler(httpd_req_t *req)
     snprintf(buf, bufsize, "log_flush: %d,\n", settings.flags & FL_LOGFLUSH ? 1 : 0);
     httpd_resp_sendstr_chunk(req, buf);
     // Log skip overrange
-    snprintf(buf, bufsize, "log_skipov: %d\n", settings.flags & FL_LOGSKIPOV ? 1 : 0);
+    snprintf(buf, bufsize, "log_skipov: %d,\n", settings.flags & FL_LOGSKIPOV ? 1 : 0);
+    httpd_resp_sendstr_chunk(req, buf);
+    // UDP Data output
+    snprintf(buf, bufsize, "udpout: %d,\n", settings.flags & FL_UDPOUT ? 1 : 0);
+    httpd_resp_sendstr_chunk(req, buf);
+    // Peer ip
+    snprintf(buf, bufsize, "peer_ip: '%s',\n", settings.peer_ip);
+    httpd_resp_sendstr_chunk(req, buf);
+    // Peer port
+    snprintf(buf, bufsize, "peer_port: %d,\n", settings.peer_port);
+    httpd_resp_sendstr_chunk(req, buf);
+    // Local port
+    snprintf(buf, bufsize, "local_port: %d\n", settings.local_port);
     httpd_resp_sendstr_chunk(req, buf);
     // Page Footer
     httpd_resp_sendstr_chunk(req, "};\n</script></body></html>");

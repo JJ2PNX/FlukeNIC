@@ -1,8 +1,8 @@
 set(requires "")
 idf_build_get_property(target IDF_TARGET)
 
-idf_component_register(SRCS "ota.c" "logger.c" "settings.c" "nettime.c" "wifi.c" "file_server.c" "mount.c" "webserver.c" "fluke.c" "main.c"
-                     "file_server.c" "mount.c" "rtc_pcf2129.c" "json_parser.c" "logger.c" "wifi.c" "ota.c"
+idf_component_register(SRCS "dataout.c" "ota.c" "logger.c" "settings.c" "nettime.c" "wifi.c" "file_server.c" "mount.c" "webserver.c" "fluke.c" "main.c"
+                     "file_server.c" "mount.c" "rtc_pcf2129.c" "json_parser.c" "logger.c" "wifi.c" "ota.c" "dataout.c"
                     INCLUDE_DIRS "."
                     REQUIRES ${requires}
                     EMBED_FILES "favicon.ico" "dir_header.html" "dir_footer.html" "settings_header.html" "simple_ota.html")

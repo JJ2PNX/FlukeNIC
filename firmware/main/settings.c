@@ -13,6 +13,9 @@ struct settings_st settings = {
     .timezone = "GMT0",
     .log_rot = LOGROT_OFF,
     .log_lines = 0,
+    .peer_ip = "192.168.0.123",
+    .peer_port = 12345,
+    .local_port = 12345
 };
 
 esp_err_t settings_load(void)
