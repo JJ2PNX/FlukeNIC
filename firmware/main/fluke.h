@@ -120,6 +120,7 @@ typedef struct {
     int decimal;
     char *funcname;
     char *unit;
+    char *rangename;
 } fluke_auxinfo_t;
 
 esp_err_t fluke_init(int queue_size, QueueHandle_t* fluke_queue);

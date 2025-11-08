@@ -679,15 +679,15 @@ void fluke_display(bool on)
 // ESP32 has float (not double) fpu, float preferred
 const fluke_auxinfo_t *fluke_auxinfo(fluke_func_t func, fluke_range_t range)
 {
-    static const fluke_auxinfo_t invalid = {0.0, 0, "-", "-"};
+    static const fluke_auxinfo_t invalid = {0.0, 0, "-", "-", "-"};
     static const fluke_auxinfo_t table[6][7] = {
-        // 2                  3                  4                  5                  6                  7                 8  <-Range
-        {{1E-7,7,"DCV","V"},{1E-6,6,"DCV","V"},{1E-5,5,"DCV","V"},{1E-4,4,"DCV","V"},{1E-3,3,"DCV","V"},{1E-2,2,"DCV","V"}, invalid         },  // Func 1(DCV), unit V   
-        { invalid,          {1E-6,6,"ACV","V"},{1E-5,5,"ACV","V"},{1E-4,4,"ACV","V"},{1E-3,3,"ACV","V"},{1E-2,2,"ACV","V"}, invalid         },  // Func 2(ACV), unit V   
-        {{1E-4,4,"R2W","R"},{1E-3,3,"R2W","R"},{1E-2,2,"R2W","R"},{1E-1,1,"R2W","R"},{1E0, 0,"R2W","R"},{1E1, 0,"R2W","R"},{1E2,0,"R2W","R"}},  // Func 3(R2W), unit R 
-        {{1E-4,4,"R4W","R"},{1E-3,3,"R4W","R"},{1E-2,2,"R4W","R"},{1E-1,1,"R4W","R"},{1E0, 0,"R4W","R"},{1E1, 0,"R4W","R"},{1E2,0,"R4W","R"}},  // Func 4(R2W), unit R 
-        { invalid,           invalid,           invalid,           invalid,          {1E-6,6,"DCA","A"},{1E-5,5,"DCA","A"}, invalid         },  // Func 5(DCmA), unit A   
-        { invalid,           invalid,           invalid,           invalid,           invalid,          {1E-5,5,"ACA","A"}, invalid         }   // Func 6(ACmA), unit A   
+        // range=2                  range=3                    range=4                  range=5                   range=6                     range=7                     range=8
+        {{1E-7,7,"DCV","V","20mV"},{1E-6,6,"DCV","V","200mV"},{1E-5,5,"DCV","V","2V"}, {1E-4,4,"DCV","V","20V"}, {1E-3,3,"DCV","V","200V"},  {1E-2,2,"DCV","V","1000V"},  invalid                },  // func=1(DCV), unit V
+        { invalid,                 {1E-6,6,"ACV","V","200mV"},{1E-5,5,"ACV","V","2V"}, {1E-4,4,"ACV","V","20V"}, {1E-3,3,"ACV","V","200V"},  {1E-2,2,"ACV","V","750V"},   invalid                },  // func=2(ACV), unit V
+        { invalid,                 {1E-3,3,"R2W","R","200R"}, {1E-2,2,"R2W","R","2kR"},{1E-1,1,"R2W","R","20kR"},{1E0, 0,"R2W","R","200kR"}, {1E1, 0,"R2W","R","2000kR"},{1E2,0,"R2W","R","20MR"}},  // func=3(R2W), unit R
+        {{1E-4,4,"R4W","R","20R"}, {1E-3,3,"R4W","R","200R"}, {1E-2,2,"R4W","R","2kR"},{1E-1,1,"R4W","R","20kR"},{1E0, 0,"R4W","R","200kR"}, {1E1, 0,"R4W","R","2000kR"},{1E2,0,"R4W","R","20MR"}},  // func=4(R2W), unit R
+        { invalid,                  invalid,                   invalid,                 invalid,                 {1E-6,6,"DCA","A", "200mA"},{1E-5,5,"DCA","A", "2000mA"},invalid                },  // func=5(DCmA), unit A
+        { invalid,                  invalid,                   invalid,                 invalid,                  invalid,                   {1E-5,5,"ACA","A", "2000mA"},invalid                }   // func=6(ACmA), unit A
     };
     if(func < FUNC_DCV || func > FUNC_ACMA) return &invalid;
     if(range < RANGE_20MV || range > RANGE_20MR) return &invalid;
