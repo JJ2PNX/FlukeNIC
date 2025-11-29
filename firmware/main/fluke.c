@@ -690,7 +690,7 @@ const fluke_auxinfo_t *fluke_auxinfo(fluke_func_t func, fluke_range_t range)
         { invalid,                  invalid,                   invalid,                 invalid,                  invalid,                   {1E-5,5,"ACA","A", "2000mA"},invalid                }   // func=6(ACmA), unit A
     };
     if(func < FUNC_DCV || func > FUNC_ACMA) return &invalid;
-    if(range < RANGE_20MV || range > RANGE_20MR) return &invalid;
+    if(range < RANGE_R8 || range > RANGE_R6) return &invalid;
     return &table[func -1][range -2];
 }
 

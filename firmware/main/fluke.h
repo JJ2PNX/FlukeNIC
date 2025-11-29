@@ -58,6 +58,7 @@ typedef struct {
         fluke_config_t config;
     };
 } fluke_event_t;
+
 typedef enum {
     FUNC_RETAIN = 0,
     FUNC_DCV = 1,
@@ -70,24 +71,16 @@ typedef enum {
 } fluke_func_t;
 
 typedef enum {
-    RANGE_RETAIN = 0,
-    RANGE_AUTO = 1,
-    RANGE_20MV = 2,     // Fluke 8842 Only
-    RANGE_20R = 2,      // Fluke 8842 Only
-    RANGE_200MV = 3,
-    RANGE_200R = 3,
-    RANGE_2V = 4,
-    RANGE_2KR = 4,
-    RANGE_20V = 5,
-    RANGE_20KR = 5,
-    RANGE_200V = 5,
-    RANGE_200KR = 6,
-    RANGE_200MA = 6,    // Fluke 8842 Only
-    RANGE_1KV = 7,
-    RANGE_2000KR = 7,
-    RANGE_2000MA = 7,
-    RANGE_20MR = 8,
-    RANGE_AUTOOFF = 9,
+    RANGE_RETAIN = 0,   // Note, Values are for 8842A, 8840A differs. Make consistent in fluke.c
+    RANGE_R0 = 1,       // Autorange On
+    RANGE_R8 = 2,       // 20mV, 20R
+    RANGE_R1 = 3,       // 200mV, 200R
+    RANGE_R2 = 4,       // 2V, 2kR
+    RANGE_R3 = 5,       // 20V, 20kR
+    RANGE_R4 = 6,       // 200V, 200kR, 200mA
+    RANGE_R5 = 7,       // 1kV, 2000kR, 2000mA
+    RANGE_R6 = 8,       // 20MR
+    RANGE_R7 = 9,       // Autoragen Off
     RANGE_OVER
 } fluke_range_t;
 
