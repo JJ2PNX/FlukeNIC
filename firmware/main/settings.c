@@ -24,7 +24,7 @@ static const char *TAG = "Settings";
 #define NVS_NAMESPACE "Settings"
 
 struct settings_st settings = {
-    .flags = FL_NTPUSE|FL_LOGLOCAL,
+    .flags = FL_NTPUSE|FL_LOGLOCAL|FL_WIFIAP,
     .hostname = "flukenic",
     .ntp_server = "time.nist.gov",
     .timezone = "GMT0",

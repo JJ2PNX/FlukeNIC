@@ -71,8 +71,6 @@ esp_err_t mount_sdcard(const char* base_path)
     slot_config.gpio_cd = PIN_NUM_CD;
     slot_config.host_id = host.slot;
     ret = esp_vfs_fat_sdspi_mount(base_path, &host, &slot_config, &mount_config, &card);
-
-
     if (ret != ESP_OK){
         if (ret == ESP_FAIL) {
             ESP_LOGE(TAG, "Failed to mount filesystem. "

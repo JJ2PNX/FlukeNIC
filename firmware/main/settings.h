@@ -31,7 +31,8 @@ typedef enum {
     FL_LOGLOCAL = 0x04,
     FL_LOGFLUSH = 0x08,
     FL_LOGSKIPOV = 0x10,
-    FL_UDPOUT = 0x20
+    FL_UDPOUT = 0x20,
+    FL_WIFIAP = 0x40,
 } settings_flags_t;
 
 typedef enum {

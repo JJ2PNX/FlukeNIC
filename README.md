@@ -10,8 +10,11 @@ I developed built-in web control and logger card that replaces the original GPIB
 NIC ... acronym of Network Interface Card.
 
 ![ScreenShot1](images/screenshot1.png)
+
 ![pcb1](images/pcb1.jpg)
+
 ![cutout1](images/cutout1.jpg)
+
 ---
 
 ## Features of This Card
@@ -30,18 +33,36 @@ PCB fabrication files (UnitA/B.zip) are for JLCPCB.
 All necessary design materials are in the *hardware* directory.
 
 ### 2. Firmware
-To program the ESP32, you’ll need to set up the ESP-IDF environment.  
-Git clone and *idf.py build* in the *firmware* directory, then download to the ESP32 using a USB-C cable.  
-Once written, future updates can be done via OTA.
+#### Method 1: Using ESP-IDF
+
+1. Set up the ESP-IDF environment.
+2. Clone the repository.
+3. Refer to `firmware/README.md` for firmware download instructions.
+
+#### Method 2: Using Flash Download Tool
+
+1. Download **Flash Download Tool** from Espressif.  
+   https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32/production_stage/tools/flash_download_tool.html
+2. Download `merge.bin` from the `firmware` directory to flash memory at address `0x0`.
+
+![ScreenShot2](images/FlashDownloadTool.png)
 
 ---
 
 ## Help / How to Use
 
 ### 1. WiFi Connection
-Currently, only WPS push-button WiFi association is supported.  
-After installing the board and powering on, press the **SRQ** button repeatedly until the **SRQ** indicator lights up — this signals the WPS request state.  
-Once the access point allows WPS, the **SRQ** light turns off and the **LISTEN** light turns on, indicating successful WiFi association.  
+By default, FlukeNIC operates as a WiFi access point (AP).
+- **SSID:** FlukeNIC  
+- **Password:** 88408842  
+- **IP Address:** 192.168.4.1  
+
+You can configure WiFi Station settings by connecting to this AP, or by using the WPS push-button method.
+
+#### WPS Push-Button Setup
+
+1. Press the **SRQ** button repeatedly until the **SRQ** indicator lights.
+2. When WPS succeeds, the **SRQ** indicator turns off and the **LISTEN** indicator turns on.
 
 Settings are saved to flash memory, so the **LISTEN** indicator should light automatically upon the next power-on.
 

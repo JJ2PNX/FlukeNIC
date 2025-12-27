@@ -32,6 +32,7 @@
 #include "logger.h"
 #include "rtc_pcf2129.h"
 #include "ota.h"
+#include "wifi.h"
 
 #if !CONFIG_HTTPD_WS_SUPPORT
 #error "Set CONFIG_HTTPD_WS_SUPPORT"
@@ -44,7 +45,7 @@
 #endif
 
 static const char *TAG = "Http";
-static const char *Version = "1.01";
+static const char *Version = "1.02";
 
 ///////////////////////////////////////////////////////////////////////
 // Common
@@ -186,6 +187,7 @@ static const httpd_uri_t uri_info = {
 static esp_err_t settings_handler(httpd_req_t *req)
 {
     esp_err_t ret;
+    char ssid[32] = {0}, passwd[64] = {0};
     // Parse and update
     char*  buf = NULL;
     size_t buf_len = httpd_req_get_url_query_len(req) + 1;
@@ -207,6 +209,22 @@ static esp_err_t settings_handler(httpd_req_t *req)
                 url_decode(dec_param, sizeof(dec_param), param);
                 strncpy(settings.hostname, dec_param, sizeof(settings.hostname) -1);
                 settings.hostname[sizeof(settings.hostname) -1] = '\0';
+            }
+            // WiFi SSID
+            if (httpd_query_key_value(buf, "ssid", param, sizeof(param)) == ESP_OK) {
+                strcpy(ssid, param);
+            }
+            // WiFi Password
+            if (httpd_query_key_value(buf, "passwd", param, sizeof(param)) == ESP_OK) {
+                strcpy(passwd, param);
+            }
+            // WiFi Accesspoint
+            if (httpd_query_key_value(buf, "wifiap", param, sizeof(param)) == ESP_OK) {
+                if(param[0] == '0'){
+                    settings.flags &= ~FL_WIFIAP;
+                } else {
+                    settings.flags |= FL_WIFIAP;
+                }
             }
             // Current date/time
             if (httpd_query_key_value(buf, "time", param, sizeof(param)) == ESP_OK) {
@@ -290,6 +308,7 @@ static esp_err_t settings_handler(httpd_req_t *req)
                 settings.local_port = MIN(atoi(param), UINT16_MAX);
             }
             settings_save();
+            wifi_setconf_sta(ssid, passwd);
         }
         free(buf);
         buf = NULL;
@@ -313,6 +332,13 @@ static esp_err_t settings_handler(httpd_req_t *req)
     httpd_resp_sendstr_chunk(req, buf);
     // Hostname
     snprintf(buf, bufsize, "hostname: '%s',\n", settings.hostname);
+    httpd_resp_sendstr_chunk(req, buf);
+    // WiFi SSID, Password
+    wifi_getconf_sta(ssid, passwd);
+    snprintf(buf, bufsize, "ssid: '%s',\npasswd: '%s',\n", ssid, passwd);
+    httpd_resp_sendstr_chunk(req, buf);
+    // WiFi Accesspoint
+    snprintf(buf, bufsize, "wifiap: %d,\n", settings.flags & FL_WIFIAP ? 1 : 0);
     httpd_resp_sendstr_chunk(req, buf);
     // Current date/time
     time_t tt;
@@ -441,7 +467,7 @@ static esp_err_t ws_handler(httpd_req_t *req)
     /* Set max_len = 0 to get the frame len */
     esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "httpd_ws_recv_frame failed to get frame len with %d", ret);
+        ESP_LOGW(TAG, "httpd_ws_recv_frame failed: %d", ret);
         return ret;
     }
     // ESP_LOGI(TAG, "frame len is %d", ws_pkt.len);
@@ -457,7 +483,7 @@ static esp_err_t ws_handler(httpd_req_t *req)
         /* Set max_len = ws_pkt.len to get the frame payload */
         ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
+            ESP_LOGW(TAG, "httpd_ws_recv_frame failed: %d", ret);
             free(buf);
             return ret;
         }

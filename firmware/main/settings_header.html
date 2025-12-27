@@ -30,6 +30,9 @@ function highlightActiveLink() {
 function setCurrentValues() {
   document.getElementById('model').value = currentValues.model;
   document.getElementById('hostname').value = currentValues.hostname;
+  document.getElementById('ssid').value = currentValues.ssid;
+  document.getElementById('passwd').value = currentValues.passwd;
+  if(currentValues.wifiap ===1) document.getElementById('wifiap').checked = true;
   if(currentValues.ntp === 1) document.getElementById('ntp').checked = true;
   document.getElementById('ntp_server').value = currentValues.ntp_server;
   document.getElementById('timezone').value = currentValues.timezone;
@@ -78,7 +81,7 @@ function btnApplyCurrentValues() {
   fetch(url)
     .then(response => {
       if (response.status === 200) {
-        document.getElementById('apply-status').textContent = 'Success';
+        document.getElementById('apply-status').textContent = 'Success, Some settings require a reboot';
         return;
       } else {
         throw new Error(`Error: ${response.status}`);
@@ -136,7 +139,13 @@ window.onload = function() {
         </fieldset>
         <fieldset><legend>Network</legend>
           <label for="hostname">Hostname</label>
-          <input type="text" id="hostname" name="hostname">
+          <input type="text" id="hostname" name="hostname"><br>
+          <label for="ssid">WiFi SSID</label>
+          <input type="text" id="ssid" name="ssid"><br>
+          <label for="passwd">WiFi Password</label>
+          <input type="text" id="passwd" name="passwd"><br>
+          <label for="wifiap">WiFi AP</label>
+          <input type="checkbox" id="wifiap" name="wifiap">Use<br>
         </fieldset>
         <fieldset><legend>Date/Time</legend>
           <div>

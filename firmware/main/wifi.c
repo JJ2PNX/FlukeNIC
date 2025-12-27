@@ -32,9 +32,6 @@
 #include "fluke.h"
 #include "settings.h"
 
-#define EXAMPLE_ESP_WIFI_SSID "SSID"
-#define EXAMPLE_ESP_WIFI_PASS "PASSWORD"
-
 #define WPS_MODE WPS_TYPE_PBC
 
 #define MAX_RETRY_ATTEMPTS     2
@@ -129,28 +126,38 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             //ESP_ERROR_CHECK(esp_wifi_wps_enable(&wps_config));
             //ESP_ERROR_CHECK(esp_wifi_wps_start(0));
             break;
-
         case WIFI_EVENT_STA_WPS_ER_PIN:
             ESP_LOGI(TAG, "WIFI_EVENT_STA_WPS_ER_PIN");
             /* display the PIN code */
             wifi_event_sta_wps_er_pin_t* event = (wifi_event_sta_wps_er_pin_t*) event_data;
             ESP_LOGI(TAG, "WPS_PIN = " PINSTR, PIN2STR(event->pin_code));
             break;
-
         case WIFI_EVENT_STA_STOP:
             ESP_LOGI(TAG, "WIFI_EVENT_STA_STOP");
             break;
-
         case WIFI_EVENT_HOME_CHANNEL_CHANGE:
             ESP_LOGI(TAG, "WIFI_EVENT_HOME_CHANNEL_CHANGE");
             wifi_event_home_channel_change_t *e = (wifi_event_home_channel_change_t*)event_data;
             ESP_LOGI(TAG, "old_chan=%d, new_chan=%d", e->old_chan, e->new_chan);
             break;
-        
         case WIFI_EVENT_STA_CONNECTED:
             ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED");
             break;
-
+        case WIFI_EVENT_AP_START:
+            ESP_LOGI(TAG, "WIFI_EVENT_AP_START");
+            break;
+        case WIFI_EVENT_AP_STOP:
+            ESP_LOGI(TAG, "WIFI_EVENT_AP_STOP");
+            break;
+        case WIFI_EVENT_AP_STACONNECTED:
+            ESP_LOGI(TAG, "WIFI_EVENT_AP_STACONNECTED");
+            break;
+        case WIFI_EVENT_AP_STADISCONNECTED:
+            ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED");
+            break;
+        case WIFI_EVENT_AP_PROBEREQRECVED:
+            ESP_LOGI(TAG, "WIFI_EVENT_AP_PROBEREQRECVED");
+            break;
         default:
             ESP_LOGI(TAG, "EVENT %ld not handled", event_id);
             break;
@@ -161,6 +168,68 @@ static void got_ip_event_handler(void* arg, esp_event_base_t event_base, int32_t
 {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG, "got ip=" IPSTR, IP2STR(&event->ip_info.ip));
+}
+
+static void wifi_setup_sta(void)
+{
+    esp_netif_t *netif_sta = esp_netif_create_default_wifi_sta();
+    wifi_config_t wifi_config_sta = {
+        .sta = {
+            //.ssid = EXAMPLE_ESP_WIFI_SSID,
+            //.password = EXAMPLE_ESP_WIFI_PASS,
+            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
+             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
+             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
+             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+             */
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+            .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
+            .sae_h2e_identifier = "",
+        },
+    };
+
+    // Load credential from nvs
+    esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &wifi_config_sta);
+    if(err != ESP_OK){
+        ESP_LOGI(TAG, "esp_wifi_get_config: %s", esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG, "SSID=%s", wifi_config_sta.sta.ssid);
+        ESP_LOGI(TAG, "PASS=%s", wifi_config_sta.sta.password);
+    }
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config_sta) );
+    // Set hostname
+    esp_netif_set_hostname(netif_sta, settings.hostname);
+}
+
+static void wifi_setup_ap(void)
+{
+    esp_netif_t *netif_ap = esp_netif_create_default_wifi_ap();
+    wifi_config_t wifi_config_ap = {
+        .ap = {
+            .ssid = CONFIG_FLUKENIC_WIFIAP_SSID,
+            .ssid_len = strlen(CONFIG_FLUKENIC_WIFIAP_SSID),
+            .channel = CONFIG_FLUKENIC_WIFIAP_CHAN,
+            .password = CONFIG_FLUKENIC_WIFIAP_PASSWD,
+            .max_connection = 2,
+            .authmode = WIFI_AUTH_WPA2_PSK,
+            .pmf_cfg = {
+                .required = false,
+            },
+        },
+    };
+    
+    esp_err_t err = esp_netif_dhcps_stop(netif_ap);
+    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+        ESP_ERROR_CHECK(err);
+    }
+    // Remove the default gateway provided by DHCP
+    esp_netif_ip_info_t ip_info;
+    ESP_ERROR_CHECK(esp_netif_get_ip_info(netif_ap, &ip_info));
+    ip_info.gw.addr = 0;
+    ESP_ERROR_CHECK(esp_netif_set_ip_info(netif_ap, &ip_info));
+
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config_ap));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(netif_ap));
 }
 
 void wifi_start_wps(void)
@@ -185,36 +254,47 @@ void wifi_start(void)
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &got_ip_event_handler, NULL));
 
-    wifi_config_t wifi_config = {
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    if(settings.flags & FL_WIFIAP) {
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+        wifi_setup_sta();
+        wifi_setup_ap();
+    } else {
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        wifi_setup_sta();
+    }
+
+    // Disable WiFi Power save
+    // esp_wifi_set_ps (WIFI_PS_NONE);
+    ESP_ERROR_CHECK(esp_wifi_start());
+}
+
+void wifi_getconf_sta(char *ssid, char *passwd)
+{
+    ESP_LOGI(TAG, "wifi_getconf_sta");
+    wifi_config_t wifi_config_sta;
+    esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &wifi_config_sta);
+    if(err == ESP_OK){
+        strcpy(ssid, (char *)wifi_config_sta.sta.ssid);
+        strcpy(passwd, (char *)wifi_config_sta.sta.password);
+    } else {
+        ssid[0] = '\0';
+        passwd[0] = '\0';
+    }
+}
+
+void wifi_setconf_sta(const char *ssid, const char *passwd)
+{
+    ESP_LOGI(TAG, "wifi_setconf_sta");
+    wifi_config_t wifi_config_sta = {
         .sta = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .password = EXAMPLE_ESP_WIFI_PASS,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
             .sae_h2e_identifier = "",
         },
     };
-    esp_netif_t *netif = esp_netif_create_default_wifi_sta();
-    esp_netif_set_hostname(netif, settings.hostname);
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    // esp_wifi_set_ps (WIFI_PS_NONE);
-    // Load credential from nvs
-    esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
-    if(err != ESP_OK){
-        ESP_LOGI(TAG, "esp_wifi_get_config failed");
-    } else {
-        ESP_LOGI(TAG, "SSID=%s", wifi_config.sta.ssid);
-        ESP_LOGI(TAG, "PASS=%s", wifi_config.sta.password);
-    }
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start());
+    strncpy((char *)wifi_config_sta.sta.ssid, ssid, sizeof(wifi_config_sta.sta.ssid));
+    strncpy((char *)wifi_config_sta.sta.password, passwd, sizeof(wifi_config_sta.sta.password));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config_sta) );
 }

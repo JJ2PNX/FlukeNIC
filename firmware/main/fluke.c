@@ -68,6 +68,7 @@ static int rxcount = 0;
 static fluke_annun_t annunciator = ANNUN_NONE;
 static bool registered = false;
 static bool is8840a = false;
+static unsigned int msgq_full_count = 0;
 
 ////////////////////////////////////////////////
 // Internal prototypes (only required)
@@ -191,6 +192,7 @@ static void hostmsg_64(void)
         xQueueReceive(rxqueue, &dummy, 0);
         xQueueSendToBack(rxqueue, &event, 0);
         ESP_LOGW(TAG, "Event queue full");
+        msgq_full_count++;
     }
 }
 
@@ -230,6 +232,7 @@ static void hostmsg_67(void)
     if(is8840a) event.meas.range ++; // 8840a/8842a range is differ by one
     if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
         ESP_LOGW(TAG, "Event queue full");
+        msgq_full_count++;
     }
 }
 
@@ -246,6 +249,7 @@ static void hostmsg_e3(void)
         xQueueReceive(rxqueue, &dummy, 0);
         xQueueSendToBack(rxqueue, &event, 0);
         ESP_LOGW(TAG, "Event queue full");
+        msgq_full_count++;
     }
 }
 
@@ -279,6 +283,7 @@ static void hostmsg_e5(void)
         xQueueReceive(rxqueue, &dummy, 0);
         xQueueSendToBack(rxqueue, &event, 0);
         ESP_LOGW(TAG, "Event queue full");
+        msgq_full_count++;
     }
 }
 
@@ -297,6 +302,7 @@ static void hostmsg_e9(void)
         xQueueReceive(rxqueue, &dummy, 0);
         xQueueSendToBack(rxqueue, &event, 0);
         ESP_LOGW(TAG, "Event queue full");
+        msgq_full_count++;
     }
 }
 
@@ -734,4 +740,5 @@ void fluke_msgcount(FILE *fp)
         fprintf(fp, "Msg %02x Count=%d\n", hostmsgprocs[i].msgid, hostmsgprocs[i].count);
     }
     fprintf(fp, "Unknown msg Count=%d\n", unknown_hostmsg_count);
+    fprintf(fp, "Msg queue full Count=%d\n", msgq_full_count);
 }

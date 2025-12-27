@@ -8,4 +8,17 @@ menu "Flukenic Configuration"
     config FLUKENIC_LOG_SDCARD
         bool "Save console log to sdcard"
         default n
+
+    config FLUKENIC_WIFIAP_CHAN
+        int "Channel of SoftAP"
+        default 1
+
+    config FLUKENIC_WIFIAP_SSID
+        string "SSID of SoftAP"
+        default "FlukeNIC"
+
+    config FLUKENIC_WIFIAP_PASSWD
+        string "Password of SoftAP"
+        default "88408842"
+
 endmenu

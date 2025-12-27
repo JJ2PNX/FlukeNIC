@@ -1,4 +1,8 @@
 URLPREFIX ?= http://flukenic.local
+.PHONY: build merge.bin
+all: build merge.bin
+build:
+	idf.py build
 ota: ota_firm ota_spiffs
 ota_firm:
 	curl $(URLPREFIX)/ota/ --no-buffer --data-binary @- < build/firmware.bin

@@ -25,7 +25,7 @@ static const char *TAG = "NetTime";
 static void nettime_notify_cb(struct timeval *tv)
 {
     sntp_sync_status_t status = sntp_get_sync_status();
-    ESP_LOGI(TAG, "nettime_notify_cb %d", status);
+    ESP_LOGI(TAG, "nettime_notify_cb status=%d", status);
     if(status == SNTP_SYNC_STATUS_COMPLETED){
         ESP_LOGI(TAG, "Sync completed, Set RTC");
         rtc_pcf2129_systohc();
