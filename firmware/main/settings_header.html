@@ -33,6 +33,7 @@ function setCurrentValues() {
   document.getElementById('ssid').value = currentValues.ssid;
   document.getElementById('passwd').value = currentValues.passwd;
   if(currentValues.wifiap ===1) document.getElementById('wifiap').checked = true;
+  document.getElementById('txpwr').value = currentValues.txpwr; 
   if(currentValues.ntp === 1) document.getElementById('ntp').checked = true;
   document.getElementById('ntp_server').value = currentValues.ntp_server;
   document.getElementById('timezone').value = currentValues.timezone;
@@ -146,6 +147,14 @@ window.onload = function() {
           <input type="text" id="passwd" name="passwd"><br>
           <label for="wifiap">WiFi AP</label>
           <input type="checkbox" id="wifiap" name="wifiap">Use<br>
+          <label for="txpwr">WiFi TX Power</label>
+          <select id="txpwr" name="txpwr">
+            <option value="84">Maximum (21 dBm)</option>
+            <option value="60">High (15 dBm)</option>
+            <option value="40">Medium (10 dBm)</option>
+            <option value="20">Low (5 dBm)</option>
+            <option value="8">Minimum (2 dBm)</option>
+          </select><br>
         </fieldset>
         <fieldset><legend>Date/Time</legend>
           <div>

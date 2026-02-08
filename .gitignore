@@ -4,3 +4,4 @@ firmware/dependencies.lock
 firmware/managed_components/
 firmware/.devcontainer/
 .vscode/
+firmware/main/build/

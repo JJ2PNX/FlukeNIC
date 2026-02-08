@@ -268,6 +268,7 @@ void wifi_start(void)
     // Disable WiFi Power save
     // esp_wifi_set_ps (WIFI_PS_NONE);
     ESP_ERROR_CHECK(esp_wifi_start());
+    esp_wifi_set_max_tx_power(settings.txpwr);
 }
 
 void wifi_getconf_sta(char *ssid, char *passwd)

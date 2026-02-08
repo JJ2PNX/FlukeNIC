@@ -49,17 +49,29 @@ function formatValue(num, dp) {
   return (num / factor).toFixed(dp);
 }
 
+let lastConfigReq = 0;
+function requestConfig(){
+  const now = Date.now();
+  if(now - lastConfigReq > 500){
+    msg = '{"tellconfig":1}';
+    sendMessage(msg);
+    lastConfigReq = now;
+  }
+}
+
 function initWebSocket() {
   websocket = new WebSocket('ws://' + window.location.hostname + ':80/ws');
   websocket.onopen = function(event) {
     console.log('WebSocket connection established');
-    msg = '{"tellconfig":1}';
-    sendMessage(msg);
+    requestConfig();
   };
   websocket.onmessage = function(event) {
     try {
       console.log('json:', event.data)
       const data = JSON.parse(event.data);
+      if(data.range == undefined || func == null){
+        requestConfig();
+      }
       if(data.count !== undefined && data.range !== undefined && func !== null && data.over !== undefined){
         range = data.range;
         dp = unitinfo[funcindex[func -1]][range -2].dp;

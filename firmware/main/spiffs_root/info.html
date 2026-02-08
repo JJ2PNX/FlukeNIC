@@ -41,7 +41,7 @@ function loadItem(name, id) {
 }
 
 function loadInfo() {
-  const targets = ['version', 'uptime', 'idfver', 'chipinfo'];
+  const targets = ['version', 'uptime', 'idfver', 'chipinfo', 'wifiap', 'txpwr', 'staip'];
   targets.forEach(item => {
     loadItem(item, item);
   });
@@ -67,7 +67,10 @@ window.onload = function() {
         <a href="https://github.com/JJ2PNX/FlukeNIC" target="_blank">Github</a><br>
         Uptime:<span id="uptime"></span><br>
         ESP-IDF version:<span id="idfver"></span><br>
-        ESP32 chip:<span id="chipinfo"></span>
+        ESP32 chip:<span id="chipinfo"></span><br>
+        WiFi AP:<span id="wifiap"></span><br>
+        WiFi TX power:<span id="txpwr"></span><br>
+        Station IP:<span id="staip"></span>
       </fieldset>
       <fieldset><legend>Debug</legend>
         <button id="btnLastBytes" onclick="btnDebug('lastBytes')">Last bytes</button>

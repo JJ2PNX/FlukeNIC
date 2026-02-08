@@ -52,6 +52,7 @@ struct settings_st {
     char peer_ip[IP_SIZE];
     uint16_t peer_port;
     uint16_t local_port;
+    int8_t txpwr;
 };
 
 extern struct settings_st settings;

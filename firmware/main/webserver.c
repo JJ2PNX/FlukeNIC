@@ -21,6 +21,7 @@
 #include "esp_idf_version.h"
 #include "esp_chip_info.h"
 #include "esp_flash.h"
+#include "esp_wifi.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "fluke.h"
@@ -44,8 +45,12 @@
 #define MIN(a,b)  (((a)<(b)) ? (a):(b))
 #endif
 
+#ifndef MAX
+#define MAX(a,b)  (((a)>(b)) ? (a):(b))
+#endif
+
 static const char *TAG = "Http";
-static const char *Version = "1.02";
+static const char *Version = "1.03";
 
 ///////////////////////////////////////////////////////////////////////
 // Common
@@ -142,6 +147,30 @@ static void info_chipinfo(FILE *fp)
     fprintf(fp, "model: %d, rev:%d, flash:%ldMB", chip_info.model, chip_info.revision, size/1024/1024);
 }
 
+static void info_wifiap(FILE *fp)
+{
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+       fprintf(fp, "ssid:%s, rssi:%d dBm", ap.ssid, ap.rssi);
+    }
+}
+
+static void info_txpwr(FILE *fp)
+{
+    int8_t p;
+    esp_wifi_get_max_tx_power(&p);
+    fprintf(fp,"%.2f dBm", p / 4.0);
+}
+
+static void info_staip(FILE *fp)
+{
+    esp_netif_ip_info_t ip;
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (esp_netif_get_ip_info(netif, &ip) == ESP_OK) {
+        fprintf(fp, IPSTR, IP2STR(&ip.ip));
+    } 
+}
+
 static struct info_procs_st {
     const char *key;
     void (*func)(FILE *fp);
@@ -154,6 +183,9 @@ static struct info_procs_st {
     {"freeHeap",    info_freeHeap},
     {"idfver",      info_idfver},
     {"chipinfo",    info_chipinfo},
+    {"wifiap",      info_wifiap},
+    {"txpwr",       info_txpwr},
+    {"staip",       info_staip},
     {NULL,          NULL}
 };
 
@@ -161,6 +193,7 @@ static esp_err_t info_handler(httpd_req_t *req)
 {
     char buff[32];
     httpd_req_get_url_query_str(req, buff, sizeof(buff));
+    httpd_resp_set_hdr(req, "Connection", "close");
     httpd_resp_set_type(req, "text/plain");
     FILE *fp = funopen(req, NULL, httpd_write, NULL, NULL);
 
@@ -225,6 +258,14 @@ static esp_err_t settings_handler(httpd_req_t *req)
                 } else {
                     settings.flags |= FL_WIFIAP;
                 }
+            }
+            // WiFi TX Power
+            if (httpd_query_key_value(buf, "txpwr", param, sizeof(param)) == ESP_OK) {
+                url_decode(dec_param, sizeof(dec_param), param);
+                settings.txpwr = atoi(dec_param);
+                settings.txpwr = MAX(settings.txpwr, WIFI_TXPWR_MIN);
+                settings.txpwr = MIN(settings.txpwr, WIFI_TXPWR_MAX);
+                esp_wifi_set_max_tx_power(settings.txpwr);
             }
             // Current date/time
             if (httpd_query_key_value(buf, "time", param, sizeof(param)) == ESP_OK) {
@@ -339,6 +380,9 @@ static esp_err_t settings_handler(httpd_req_t *req)
     httpd_resp_sendstr_chunk(req, buf);
     // WiFi Accesspoint
     snprintf(buf, bufsize, "wifiap: %d,\n", settings.flags & FL_WIFIAP ? 1 : 0);
+    httpd_resp_sendstr_chunk(req, buf);
+    // WiFi TX Power
+    snprintf(buf, bufsize, "txpwr: %d,\n", settings.txpwr);
     httpd_resp_sendstr_chunk(req, buf);
     // Current date/time
     time_t tt;

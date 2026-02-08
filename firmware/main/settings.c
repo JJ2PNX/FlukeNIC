@@ -19,6 +19,7 @@
 #include <esp_log.h>
 #include "nvs_flash.h"
 #include "settings.h"
+#include "wifi.h"
 
 static const char *TAG = "Settings";
 #define NVS_NAMESPACE "Settings"
@@ -32,7 +33,8 @@ struct settings_st settings = {
     .log_lines = 0,
     .peer_ip = "192.168.0.123",
     .peer_port = 12345,
-    .local_port = 12345
+    .local_port = 12345,
+    .txpwr = WIFI_TXPWR_DEF,
 };
 
 esp_err_t settings_load(void)
@@ -47,6 +49,9 @@ esp_err_t settings_load(void)
         ESP_LOGE(TAG, "nvs_get_blob failed, use default settings");
     }
     nvs_close(h);
+    if(settings.txpwr < WIFI_TXPWR_MIN || settings.txpwr > WIFI_TXPWR_MAX){
+        settings.txpwr = WIFI_TXPWR_DEF;
+    }
     return ret;
 }
 

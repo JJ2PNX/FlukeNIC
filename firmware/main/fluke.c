@@ -23,7 +23,6 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "fluke.h"
-
 // Required to acheve 100sp/s rate
 #ifndef CONFIG_UART_ISR_IN_IRAM
 #error "Set CONFIG_UART_ISR_IN_IRAM"
@@ -36,19 +35,20 @@
 //#define DUMP
 #define UART_TXD 17
 #define UART_RXD 16
-#define UART_RTS (UART_PIN_NO_CHANGE)
-#define UART_CTS (UART_PIN_NO_CHANGE)
+#define UART_RTS UART_PIN_NO_CHANGE
+#define UART_CTS UART_PIN_NO_CHANGE
 #define UART_BAUD_RATE 62500  
 #define UART_PORT_NUM 2
 #define TASK_STACK_SIZE 3072    // Bytes (esp-idf uses bytes, not words)
 #define TASK_PRIO   10
 
 #define HOSTVALUE(X)  ((X) & 0x0F)      // Ignore upper 4 bits to get value from host (decode)
-static const char _cardvalue[16] = {0x80, 0x01, 0x02, 0x83, 0x04, 0x85, 0x86, 0x07, 0x08, 0x89, 0x8a, 0x0b, 0x8c, 0x0d, 0x0e, 0x8f};
-#define CARDVALUE(X)  (_cardvalue[(X)]) // Attach upper 4 bits to send value to host (encode)
+#define CARDVALUE(X)  (X)
 
 static const char *TAG = "Fluke";
 
+static int nbreak = 0;
+static int nparity = 0;
 // Card transmit data
 static char txdata[32];
 static int txlen = 0;
@@ -93,7 +93,7 @@ static void fluke_putc(char c)
 static void register_card()
 {
     ESP_LOGI(TAG, "register_card");
-    fluke_putc(0xC8);
+    fluke_putc(0x48);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     txlen = 0;
     txindex = 0;
@@ -106,6 +106,13 @@ static void register_card()
 
 ////////////////////////////////////////////////
 // Card message maker
+
+// Card msg 0x41 Trigger
+static void cardmsg_41(void)
+{
+    txdata[txlen++] = 0x41; // Header (Msg id)
+    txdata[txlen++] = 0x40; // Footer
+}
 
 // Card msg 0x43 Disp GPIB addr etc.
 // (P, Q, x, x) ... Disp GPIB addr(PQ) (P < 4)
@@ -121,6 +128,14 @@ static void cardmsg_43(int a1, int a2, int b1, int b2)
     txdata[txlen++] = 0x40; // Footer
 }
 
+// Card msg 0x44 Offset on/off
+static void cardmsg_44(bool offset)
+{
+    txdata[txlen++] = 0x44; // Header (Msg id)
+    txdata[txlen++] = offset ? CARDVALUE(1) : CARDVALUE(0);
+    txdata[txlen++] = 0x40; // Footer
+}
+
 // Card msg 0x45 Annunciator
 // 0x01 ... REMOTE, Lock local control
 // 0x02 ... TALK
@@ -133,33 +148,34 @@ static void cardmsg_45(int datum)
     txdata[txlen++] = 0x40; // Footer
 }
 
-// Card msg 0x49 Make host tell config, host will respond 0xE5 config
+#if 0
+// Card msg 0x46 Get user-defined message
+static void cardmsg_46(void)
+{
+    txdata[txlen++] = 0x46; // Header (Msg id)
+    txdata[txlen++] = 0x40; // Footer
+}
+
+// Card msg 0x47 Get CAL rom data
+static void cardmsg_47(void)
+{
+    txdata[txlen++] = 0x47; // Header (Msg id)
+    txdata[txlen++] = 0x40; // Footer
+}
+#endif
+
+// Card msg 0x49 Make host tell config, host will respond 0x65 config
 static void cardmsg_49(void)
 {
     txdata[txlen++] = 0x49; // Header (Msg id)
     txdata[txlen++] = 0x40; // Footer
 }
 
-// Card msg 0xC1 Trigger
-static void cardmsg_c1(void)
-{
-    txdata[txlen++] = 0xC1; // Header (Msg id)
-    txdata[txlen++] = 0x40; // Footer
-}
-
-// Card msg 0xC4 Offset on/off
-static void cardmsg_c4(bool offset)
-{
-    txdata[txlen++] = 0xC4; // Header (Msg id)
-    txdata[txlen++] = offset ? CARDVALUE(1) : CARDVALUE(0);
-    txdata[txlen++] = 0x40; // Footer
-}
-
-// Card msg 0xCB Set Func/Range/Speed/Trig
-static void cardmsg_cb(int func, int range, int speed, int trig)
+// Card msg 0x4B Set Func/Range/Speed/Trig
+static void cardmsg_4b(int func, int range, int speed, int trig)
 {
     if(is8840a && range > 2) range --;  // 8840a/8842a range is differ by one
-    txdata[txlen++] = 0xCB; // Header (Msg id)
+    txdata[txlen++] = 0x4b; // Header (Msg id)
     txdata[txlen++] = CARDVALUE(func);
     txdata[txlen++] = CARDVALUE(range);
     txdata[txlen++] = CARDVALUE(speed);
@@ -170,9 +186,26 @@ static void cardmsg_cb(int func, int range, int speed, int trig)
 ////////////////////////////////////////////////
 // Host message handlers
 
-// Host msg 0x61 Unknown, typically seen prior to 0x67 meas, Sample complete ?
+// Host msg 0x61 Sample complete
 static void hostmsg_61(void)
 {
+}
+
+// Host msg 0x63 SRQ key pressed
+static void hostmsg_63(void)
+{
+    fluke_event_t event;
+    event.type = EVENT_SRQ;
+    gettimeofday(&event.time, NULL);
+    if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
+        // Discard old event if append failed
+        // This mostly occurs when SD card writing falls behind during FAST rate
+        fluke_event_t dummy;
+        xQueueReceive(rxqueue, &dummy, 0);
+        xQueueSendToBack(rxqueue, &event, 0);
+        ESP_LOGW(TAG, "Event queue full");
+        msgq_full_count++;
+    }
 }
 
 // Host msg 0x64 LOCAL key pressed
@@ -185,6 +218,40 @@ static void hostmsg_64(void)
     fluke_event_t event;
     event.type = EVENT_LOCAL;
     gettimeofday(&event.time, NULL);
+    if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
+        // Discard old event if append failed
+        // This mostly occurs when SD card writing falls behind during FAST rate
+        fluke_event_t dummy;
+        xQueueReceive(rxqueue, &dummy, 0);
+        xQueueSendToBack(rxqueue, &event, 0);
+        ESP_LOGW(TAG, "Event queue full");
+        msgq_full_count++;
+    }
+}
+
+// Host msg 0x65 Config report(Func/Range/Speed/Trig,etc)
+// Reported func is same to set value (1)DCV, (2)ACV, (3)R2W, (4)R4W, (5)DCmA, (6)ACmA
+// range differ from set value (-1) see below
+//  V: (1)20mV (8842 only),   (2)200mV, (3)2V,  (4)20V,  (5)200V,  (6)1000V
+//  R: (1)20R (8842,R4W only),(2)200R,  (3)2kR, (4)20kR, (5)200kR, (6)2000kR, (7)20MR
+//  A: (5)200mA(8842,DCmA only), (6)2000mA
+//  Auto/Man is placed in flags
+// speed 1(S),2(M),3(F) or 9(S),10(M),11(F) ... 0x8 bit represents sample delay (my guess)
+// flags 0x8 (0)No offset / (1)Offset
+// flags 0x4 (0)Autorange / (1)Manual
+// flags 0x2 (0)Front-in  / (1)Rear-in
+// flags 0x1 (0)Int Trig  / (1)Ext Trig
+static void hostmsg_65(void)
+{
+    fluke_event_t event;
+    event.type = EVENT_CONFIG;
+    gettimeofday(&event.time, NULL);
+    event.config.func  = HOSTVALUE(rxdata[0]);
+    event.config.range = HOSTVALUE(rxdata[1]) + 1; // Reported range is -1 from request, we use request
+    if(is8840a) event.config.range ++; // 8840a/8842a range is differ by one
+    event.config.speed = HOSTVALUE(rxdata[2]);
+    event.config.flags = HOSTVALUE(rxdata[3]);
+    // rxdata[4]...Unknown probably cal status
     if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
         // Discard old event if append failed
         // This mostly occurs when SD card writing falls behind during FAST rate
@@ -236,59 +303,8 @@ static void hostmsg_67(void)
     }
 }
 
-// Host msg 0xE3 SRQ key pressed
-static void hostmsg_e3(void)
-{
-    fluke_event_t event;
-    event.type = EVENT_SRQ;
-    gettimeofday(&event.time, NULL);
-    if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
-        // Discard old event if append failed
-        // This mostly occurs when SD card writing falls behind during FAST rate
-        fluke_event_t dummy;
-        xQueueReceive(rxqueue, &dummy, 0);
-        xQueueSendToBack(rxqueue, &event, 0);
-        ESP_LOGW(TAG, "Event queue full");
-        msgq_full_count++;
-    }
-}
-
-// Host msg 0xE5 Config report(Func/Range/Speed/Trig,etc)
-// Reported func is same to set value (1)DCV, (2)ACV, (3)R2W, (4)R4W, (5)DCmA, (6)ACmA
-// range differ from set value (-1) see below
-//  V: (1)20mV (8842 only),   (2)200mV, (3)2V,  (4)20V,  (5)200V,  (6)1000V
-//  R: (1)20R (8842,R4W only),(2)200R,  (3)2kR, (4)20kR, (5)200kR, (6)2000kR, (7)20MR
-//  A: (5)200mA(8842,DCmA only), (6)2000mA
-//  Auto/Man is placed in flags
-// speed 1(S),2(M),3(F) or 9(S),10(M),11(F) ... 0x8 bit represents sample delay (my guess)
-// flags 0x8 (0)No offset / (1)Offset
-// flags 0x4 (0)Autorange / (1)Manual
-// flags 0x2 (0)Front-in  / (1)Rear-in
-// flags 0x1 (0)Int Trig  / (1)Ext Trig
-static void hostmsg_e5(void)
-{
-    fluke_event_t event;
-    event.type = EVENT_CONFIG;
-    gettimeofday(&event.time, NULL);
-    event.config.func  = HOSTVALUE(rxdata[0]);
-    event.config.range = HOSTVALUE(rxdata[1]) + 1; // Reported range is -1 from request, we use request
-    if(is8840a) event.config.range ++; // 8840a/8842a range is differ by one
-    event.config.speed = HOSTVALUE(rxdata[2]);
-    event.config.flags = HOSTVALUE(rxdata[3]);
-    // rxdata[4]...Unknown probably cal status
-    if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
-        // Discard old event if append failed
-        // This mostly occurs when SD card writing falls behind during FAST rate
-        fluke_event_t dummy;
-        xQueueReceive(rxqueue, &dummy, 0);
-        xQueueSendToBack(rxqueue, &event, 0);
-        ESP_LOGW(TAG, "Event queue full");
-        msgq_full_count++;
-    }
-}
-
-// Host msg 0xE9 Error
-static void hostmsg_e9(void)
+// Host msg 0x69 Error
+static void hostmsg_69(void)
 {
     fluke_event_t event;
     event.type = EVENT_ERROR;
@@ -306,30 +322,55 @@ static void hostmsg_e9(void)
     }
 }
 
+// Host msg 0x6a User-defined message
+static void hostmsg_6a(void)
+{
+    for(int i=0; i<8; i++){
+        printf("%02x ", HOSTVALUE(rxdata[i]));
+    }
+    printf("\n");
+}
+
+// Host msg 0x6b: CAL data (Card request 0x47 0x40)
+// E2PROM data will be retrieved
+// Each E2PROM byte is represented by its upper 4 bits (MSB) and lower 4 bits (LSB)
+static void hostmsg_6b(void)
+{
+    for(int i=0; i<8; i++){
+        printf("%02x ", HOSTVALUE(rxdata[i]));
+    }
+    printf("\n");
+}
+
 struct hostmsgproc_st {
-    char msgid;                 // Message id
-    int datalen;                // Expected data length
-    void (*proc)(void);         // Message handler
+    const char msgid;           // Message id
+    const int datalen;          // Expected data length
+    void (* const proc)(void);  // Message handler
     int count;                  // Message receive counter
+    int count_invalid;          // Data length invalid counter
 };
 
 static struct hostmsgproc_st hostmsgprocs[] = {
-    {0x61, 0, hostmsg_61, 0},   // Msg 0x61 Unknown, probably sample complete ?
-    {0x64, 0, hostmsg_64, 0},   // Msg 0x64 LOCAL key pressed
-    {0x67, 7, hostmsg_67, 0},   // Msg 0x67 Measured data
-    {0xE3, 0, hostmsg_e3, 0},   // Msg 0xE3 SRQ key pressed
-    {0xE5, 5, hostmsg_e5, 0},   // Msg 0xE5 Config(Func/Range/Trig/Flags)
-    {0xE9, 2, hostmsg_e9, 0}    // Msg 0xE9 Error
+    {0x61, 0, hostmsg_61, 0, 0},   // Msg 0x61 Unknown, probably sample complete ?
+    {0x63, 0, hostmsg_63, 0, 0},   // Msg 0x63 SRQ key pressed
+    {0x64, 0, hostmsg_64, 0, 0},   // Msg 0x64 LOCAL key pressed
+    {0x65, 5, hostmsg_65, 0, 0},   // Msg 0x65 Config(Func/Range/Trig/Flags)
+    {0x67, 7, hostmsg_67, 0, 0},   // Msg 0x67 Measured data
+    {0x69, 2, hostmsg_69, 0, 0},   // Msg 0x69 Error
+    {0x6a, 8, hostmsg_6a, 0, 0},   // Msg 0x6a User-defined message (request 0x46 0x40)
+    {0x6b, 8, hostmsg_6b, 0, 0}    // Msg 0x6b CAL rom data (request 0x47 0x40)
 };
 
 static struct hostmsgproc_st *hostmsgproc;
 
-#define ISACKERR(X)         ((X) & 0x10)
+#define ISERROR(X)          ((X) & 0x10)          // Datum indicates an error
+#define SETERROR(X)         ((X) | 0x10)          // Set error flag
+#define MASKERROR(X)        ((X) & 0x6F)          // Mask error flag
 #define ISHOST(X)           ((X) & 0x20)          // Datum is from host
 #define ISCARD(X)           (!(ISHOST(X)))        // Datum is from card
 #define ISCTRL(X)           ((X) & 0x40)          // Datum is control
 #define ISVALUE(X)          (!(ISCTRL(X)))        // Datum is value
-#define ISHOSTCTRLEND(X)    ((X) == 0xE0)         // Datum is host control end(footer)
+#define ISHOSTCTRLEND(X)    ((X) == 0x60)         // Datum is host control end(footer)
 #define ISHOSTCTRLSTART(X)  (ISHOST(X) && ISCTRL(X) && !(ISHOSTCTRLEND(X))) // Datum is host control start(header)
 #define ISHOSTVALUE(X)      (ISHOST(X) && ISVALUE(X))
 
@@ -356,22 +397,21 @@ static void fluke_feed(char c)
 {
     rxlast[rxcount%sizeof(rxlast)] = c;
     rxcount++;
-    if (c == 0xFF || c == 0xEC){
+    if(c == 0x6C){
         register_card();
         return;
     }
 
-    //xSemaphoreTake(feedmutex, portMAX_DELAY);
     assert(xSemaphoreTake(feedmutex, pdMS_TO_TICKS(5000)));
     if(txslot){
         // Transmit card message
-        // printf("txlen=%d, txindex=%d\n", txlen, txindex);
         if(c != txdata[txindex]){
             // Inconsistent ACK
-            ESP_LOGI(TAG, "Ack not match T=%02x/R=%02x %s", txdata[txindex], c, ISACKERR(c) ? "Ack err ?" : "");
-            if(ISACKERR(c)){
-                fluke_putc(txdata[txindex]);
-            }
+            ESP_LOGI(TAG, "Ack not match T=%02x/R=%02x", txdata[txindex], c);
+            // Case 1: Datum c is a fragment of the host message. Discard it.
+            if(ISHOST(c)) goto end;
+            // Case 2: Datum c is a previously sent card message, but inconsistent. Retransmit it.
+            fluke_putc(SETERROR(txdata[txindex]));
             goto end;
         }
         txindex++;
@@ -388,6 +428,12 @@ static void fluke_feed(char c)
     
     } else if(ISHOST(c)) {
         // Datum is from host
+        if(ISERROR(c)){
+            if(rxindex > 0){
+                rxindex --;
+            }
+            c = MASKERROR(c);
+        }
         if(ISHOSTCTRLSTART(c)){
             // Host message start
             rxslot = true;
@@ -409,6 +455,7 @@ static void fluke_feed(char c)
             if(hostmsgproc){
                 if(rxindex < hostmsgproc->datalen){
                     // Value too short
+                    hostmsgproc->count_invalid++;
                     ESP_LOGW(TAG, "Host msg %02x value too short", hostmsgproc->msgid);
                 } else {
                     // Ok
@@ -418,7 +465,6 @@ static void fluke_feed(char c)
                 fluke_putc(c);  // Writeback as ack
                 rxslot = false;
                 // Invoke card message tx (if pending) when host message ends
-                //xSemaphoreTake(txmutex, portMAX_DELAY);
                 assert(xSemaphoreTake(txmutex, pdMS_TO_TICKS(5000)));
                 if(txlen){
                     fluke_putc(txdata[0]);
@@ -426,6 +472,9 @@ static void fluke_feed(char c)
                 } else {
                     xSemaphoreGive(txmutex);
                 }
+                hostmsgproc = NULL;
+            } else {
+                fluke_putc(c);  // Writeback as ack
             }
         } else {
             // Host value
@@ -434,6 +483,7 @@ static void fluke_feed(char c)
                     rxdata[rxindex++] = c;
                 } else {
                     // Value too long
+                    hostmsgproc->count_invalid++;
                     ESP_LOGW(TAG, "Host msg %02x value too long", hostmsgproc->msgid);
                     hostmsgproc = NULL;
                 }
@@ -448,13 +498,13 @@ end:
     xSemaphoreGive(feedmutex);
 }
 
-#define BUF_SIZE (256)
+#define BUF_SIZE (128)
 static void fluke_task(void *arg)
 {
     uart_config_t uart_config = {
         .baud_rate  = UART_BAUD_RATE,
-        .data_bits  = UART_DATA_8_BITS,
-        .parity     = UART_PARITY_DISABLE,
+        .data_bits  = UART_DATA_7_BITS,
+        .parity     = UART_PARITY_ODD,
         .stop_bits  = UART_STOP_BITS_2,
         .flow_ctrl  = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT
@@ -465,7 +515,7 @@ static void fluke_task(void *arg)
 
     QueueHandle_t uart_queue;
 
-    ESP_ERROR_CHECK(uart_driver_install(UART_PORT_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 3, &uart_queue, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_driver_install(UART_PORT_NUM, BUF_SIZE * 2, 0, 3, &uart_queue, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_PORT_NUM, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_TXD, UART_RXD, UART_RTS, UART_CTS));
     // Required to acheve 100sp/s rate
@@ -500,12 +550,24 @@ static void fluke_task(void *arg)
                 ESP_LOGI(TAG, "UART_BREAK");
                 uart_flush_input(UART_PORT_NUM);
                 xQueueReset(uart_queue);
+                nbreak++;
+                if(registered){
+                    vTaskDelay(pdMS_TO_TICKS(10));
+                    fluke_putc(0x48);
+                }
                 break;
             case UART_PARITY_ERR:
                 ESP_LOGI(TAG, "UART_PARITY_ERR");
+                uart_flush_input(UART_PORT_NUM);
+                xQueueReset(uart_queue);
+                fluke_putc(0x48);
+                nparity++;
                 break;
             case UART_FRAME_ERR:
                 ESP_LOGI(TAG, "UART_FRAME_ERR");
+                uart_flush_input(UART_PORT_NUM);
+                xQueueReset(uart_queue);
+                fluke_putc(0x48);
                 break;
             case UART_PATTERN_DET:
                 ESP_LOGI(TAG, "UART_PATTERN_DET");
@@ -528,7 +590,7 @@ static void fluke_task(void *arg)
 // https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/advanced-development/performance/reduce-boot-time.html
 esp_err_t fluke_init(int queue_size, QueueHandle_t* queue)
 {
-    ESP_LOGI(TAG, "fluke_setup");
+    ESP_LOGI(TAG, "fluke_init");
     rxqueue = xQueueCreate(queue_size, sizeof(fluke_event_t));
     if(rxqueue == NULL){
         ESP_LOGE(TAG, "xQueueCreate failed");
@@ -577,7 +639,7 @@ void fluke_setfrst(fluke_func_t func, fluke_range_t range, fluke_speed_t speed, 
     // Local control is locked when in GENUINE behavior, we discard it
     //cardmsg_45(5);  // 0x1 REMOTE | 0x4 LISTEN
     //cardmsg_45(1);  // 0x1 REMOTE
-    cardmsg_cb(func, range, speed, trig);
+    cardmsg_4b(func, range, speed, trig);
     xSemaphoreGive(txmutex);
     fluke_invoketx();
 }
@@ -602,7 +664,7 @@ void fluke_trig(void)
     ESP_LOGI(TAG, "fluke_trig");
     xSemaphoreTake(txmutex, portMAX_DELAY);
     //cardmsg_45(5);
-    cardmsg_c1();
+    cardmsg_41();
     //cardmsg_45(1);
     xSemaphoreGive(txmutex);
     fluke_invoketx();
@@ -616,7 +678,7 @@ void fluke_offset(bool on)
     xSemaphoreTake(txmutex, portMAX_DELAY);
     //cardmsg_45(5);
     //cardmsg_45(1);
-    cardmsg_c4(on ? 1 : 0);
+    cardmsg_44(on ? 1 : 0);
     xSemaphoreGive(txmutex);
     fluke_invoketx();
 }
@@ -655,8 +717,8 @@ void fluke_initstate(void)
     ESP_LOGI(TAG, "fluke_initstate");
     xSemaphoreTake(txmutex, portMAX_DELAY);
     //cardmsg_45(5);
-    cardmsg_cb(1, 1, 1, 1); // DCV, AUTO, SLOW, INT
-    cardmsg_c4(0);          // Offset off
+    cardmsg_4b(1, 1, 1, 1); // DCV, AUTO, SLOW, INT
+    cardmsg_44(0);          // Offset off
     cardmsg_43(8, 0, 1, 0); // Disp on
     //cardmsg_45(1);
     xSemaphoreGive(txmutex);
@@ -720,16 +782,17 @@ void fluke_annun(fluke_annun_t which, bool on)
 void fluke_dumplast(FILE *fp)
 {
     if(fp == NULL) fp = stdout;
-    fprintf(fp, "Dump rxlast: ");
+    fprintf(fp, "RxLast: ");
     for(int i=rxcount; i<rxcount + sizeof(rxlast); i++){
         fprintf(fp, "%02x ", rxlast[i%sizeof(rxlast)]);
     }
     fprintf(fp, " rxcount=%d\n", rxcount);
-    fprintf(fp, "Dump txlast: ");
+    fprintf(fp, "TxLast: ");
     for(int i=txcount; i<txcount + sizeof(txlast); i++){
         fprintf(fp, "%02x ", txlast[i%sizeof(txlast)]);
     }
     fprintf(fp, " txcount=%d\n", txcount);
+    fprintf(fp, "nBreak=%d nParity=%d\n", nbreak, nparity);
 }
 
 // Print message counter (for debug)
@@ -737,8 +800,9 @@ void fluke_msgcount(FILE *fp)
 {
     if(fp == NULL) fp = stdout;
     for(int i=0; i<ARRAY_LENGTH(hostmsgprocs); i++){
-        fprintf(fp, "Msg %02x Count=%d\n", hostmsgprocs[i].msgid, hostmsgprocs[i].count);
+        struct hostmsgproc_st *p = &hostmsgprocs[i];
+        fprintf(fp, "Msg %02x Count=%d Invalid=%d\n", p->msgid, p->count, p->count_invalid);
     }
-    fprintf(fp, "Unknown msg Count=%d\n", unknown_hostmsg_count);
+    fprintf(fp, "Msg unknown Count=%d\n", unknown_hostmsg_count);
     fprintf(fp, "Msg queue full Count=%d\n", msgq_full_count);
 }
