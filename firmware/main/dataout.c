@@ -1,4 +1,3 @@
-
 //   Copyright 2025 H.Momose / JJ2PNX
 //
 //   Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +32,7 @@ static const char *TAG = "Dataout";
 void dataout_send(fluke_event_t *event, fluke_config_t *config)
 {
     static int sd = 0;
+    static int failcount = 0;
     if(~settings.flags & FL_UDPOUT){
         if(sd > 0){
             close(sd);
@@ -58,8 +58,11 @@ void dataout_send(fluke_event_t *event, fluke_config_t *config)
         sin_local.sin_port = htons(settings.local_port);
         if (bind(sd, (struct sockaddr*)&sin_local, sizeof(sin_local)) < 0) {
             ESP_LOGE(TAG, "bind() failed, errno=%d", errno);
+            close(sd);
+            sd = 0;
             return;
         }
+        failcount = 0;
     }
 
     const fluke_auxinfo_t *auxinfo = fluke_auxinfo(config->func, event->meas.range);    
@@ -72,14 +75,19 @@ void dataout_send(fluke_event_t *event, fluke_config_t *config)
         value = (float)event->meas.count * auxinfo->lsb;
         decimal = auxinfo->decimal;
     }
-    struct tm stm;
-    localtime_r(&event->time.tv_sec, &stm);
-    char buff[128];
-    assert( snprintf(buff, sizeof(buff), "date=%02d/%02d/%02d,time=%02d:%02d:%02d.%03ld,func=%s,range=%s,value=%.*f\n",
-        stm.tm_year %100, stm.tm_mon +1, stm.tm_mday,
-        stm.tm_hour, stm.tm_min, stm.tm_sec, event->time.tv_usec / 1000,
-        auxinfo->funcname, auxinfo->rangename,
-        decimal, value) < sizeof(buff) );
 
-    sendto(sd, buff, strlen(buff), 0, (struct sockaddr *)&sin_peer, sizeof(sin_peer));
+    struct tm *stm = &event->timestamp.tm_local;
+    char buff[128];
+    int len = snprintf(buff, sizeof(buff), "date=%02d/%02d/%02d,time=%02d:%02d:%02d.%03ld,func=%s,range=%s,value=%.*f\n",
+        stm->tm_year %100, stm->tm_mon +1, stm->tm_mday,
+        stm->tm_hour, stm->tm_min, stm->tm_sec, event->timestamp.tv.tv_usec /1000,
+        auxinfo->funcname, auxinfo->rangename,
+        decimal, value);
+
+    if(sendto(sd, buff, len, 0, (struct sockaddr *)&sin_peer, sizeof(sin_peer)) < 0){
+        if(++failcount > 10){
+            close(sd);
+            sd = 0;
+        }
+    }
 }

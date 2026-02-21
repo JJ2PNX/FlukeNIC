@@ -49,6 +49,7 @@ static const char *TAG = "Fluke";
 
 static int nbreak = 0;
 static int nparity = 0;
+static int nframe = 0;
 // Card transmit data
 static char txdata[32];
 static int txlen = 0;
@@ -186,6 +187,18 @@ static void cardmsg_4b(int func, int range, int speed, int trig)
 ////////////////////////////////////////////////
 // Host message handlers
 
+static void set_timestamp(fluke_event_t *event)
+{
+    static time_t lastsec = 0;
+    static struct tm lasttm;
+    gettimeofday(&event->timestamp.tv, NULL);
+    if(event->timestamp.tv.tv_sec != lastsec){
+        lastsec = event->timestamp.tv.tv_sec;
+        localtime_r(&lastsec, &lasttm);
+    }
+    event->timestamp.tm_local = lasttm;
+}
+
 // Host msg 0x61 Sample complete
 static void hostmsg_61(void)
 {
@@ -196,7 +209,7 @@ static void hostmsg_63(void)
 {
     fluke_event_t event;
     event.type = EVENT_SRQ;
-    gettimeofday(&event.time, NULL);
+    set_timestamp(&event);
     if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
         // Discard old event if append failed
         // This mostly occurs when SD card writing falls behind during FAST rate
@@ -217,7 +230,7 @@ static void hostmsg_64(void)
     // cardmsg_43(0, 1, 0, 0);  // Display GPIB addr 01
     fluke_event_t event;
     event.type = EVENT_LOCAL;
-    gettimeofday(&event.time, NULL);
+    set_timestamp(&event);
     if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
         // Discard old event if append failed
         // This mostly occurs when SD card writing falls behind during FAST rate
@@ -245,7 +258,7 @@ static void hostmsg_65(void)
 {
     fluke_event_t event;
     event.type = EVENT_CONFIG;
-    gettimeofday(&event.time, NULL);
+    set_timestamp(&event);
     event.config.func  = HOSTVALUE(rxdata[0]);
     event.config.range = HOSTVALUE(rxdata[1]) + 1; // Reported range is -1 from request, we use request
     if(is8840a) event.config.range ++; // 8840a/8842a range is differ by one
@@ -292,7 +305,7 @@ static void hostmsg_67(void)
     
     fluke_event_t event;
     event.type = EVENT_MEAS;
-    gettimeofday(&event.time, NULL);
+    set_timestamp(&event);
     event.meas.over = over;
     event.meas.count = count;
     event.meas.range = HOSTVALUE(rxdata[6]) + 1; // Reported range is -1 from request, we use request
@@ -308,7 +321,7 @@ static void hostmsg_69(void)
 {
     fluke_event_t event;
     event.type = EVENT_ERROR;
-    gettimeofday(&event.time, NULL);
+    set_timestamp(&event);
     event.errnum =  HOSTVALUE(rxdata[0]) * 10;
     event.errnum += HOSTVALUE(rxdata[1]);
     if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
@@ -568,6 +581,7 @@ static void fluke_task(void *arg)
                 uart_flush_input(UART_PORT_NUM);
                 xQueueReset(uart_queue);
                 fluke_putc(0x48);
+                nframe++;
                 break;
             case UART_PATTERN_DET:
                 ESP_LOGI(TAG, "UART_PATTERN_DET");
@@ -792,7 +806,7 @@ void fluke_dumplast(FILE *fp)
         fprintf(fp, "%02x ", txlast[i%sizeof(txlast)]);
     }
     fprintf(fp, " txcount=%d\n", txcount);
-    fprintf(fp, "nBreak=%d nParity=%d\n", nbreak, nparity);
+    fprintf(fp, "nBreak=%d nParity=%d nFrame=%d\n", nbreak, nparity, nframe);
 }
 
 // Print message counter (for debug)

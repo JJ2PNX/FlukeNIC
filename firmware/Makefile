@@ -15,3 +15,5 @@ merge.bin:
 		0x00d000 build/ota_data_initial.bin \
 		0x010000 build/firmware.bin \
 		0x310000 build/spiffs.bin
+clean:
+	idf.py fullclean

@@ -50,7 +50,7 @@
 #endif
 
 static const char *TAG = "Http";
-static const char *Version = "1.03";
+static const char *Version = "1.04";
 
 ///////////////////////////////////////////////////////////////////////
 // Common
@@ -487,7 +487,8 @@ static void fluke_command(httpd_req_t *req, const uint8_t *msg, size_t len)
     if(rec == 1){
         fluke_event_t event;
         event.type = EVENT_AUX;
-        gettimeofday(&event.time, NULL);
+        gettimeofday(&event.timestamp.tv, NULL);
+        localtime_r(&event.timestamp.tv.tv_sec, &event.timestamp.tm_local);
         if(xQueueSendToBack(fluke_event_queue, &event, 0) == errQUEUE_FULL){
             // Force queue clear if append failed
             // This mostly occurs when SD card writing falls behind during FAST rate
@@ -579,11 +580,10 @@ static void send_fluke_event(void *arg)
     char timebuff[48];
     struct async_resp_arg resp_arg = async_resp_buff[(int)arg];
     fluke_event_t *event = &resp_arg.event;
-    struct tm stm;
-    localtime_r(&event->time.tv_sec, &stm);
+    struct tm *stm = &event->timestamp.tm_local;
     snprintf(timebuff, sizeof(timebuff), "%d-%02d-%02dT%02d:%02d:%02d.%03ld",
-        stm.tm_year + 1900, stm.tm_mon+1, stm.tm_mday,
-        stm.tm_hour, stm.tm_min, stm.tm_sec, event->time.tv_usec/1000);
+        stm->tm_year +1900, stm->tm_mon +1, stm->tm_mday,
+        stm->tm_hour, stm->tm_min, stm->tm_sec, event->timestamp.tv.tv_usec /1000);
     
     switch(event->type){
         case EVENT_MEAS:

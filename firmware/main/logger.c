@@ -85,15 +85,11 @@ bool logger_isrec()
 void logger_record(fluke_event_t *event, fluke_config_t *config)
 {
     if(!fplog) return;
-    struct tm stm;
-    localtime_r(&event->time.tv_sec, &stm);
-    const fluke_auxinfo_t *auxinfo = fluke_auxinfo(config->func, event->meas.range);
-
     if(event->meas.over && settings.flags & FL_LOGSKIPOV) return;
 
     // Rotation
     log_lines ++;
-    time_t local_tt = event->time.tv_sec + offset_tt;
+    time_t local_tt = event->timestamp.tv.tv_sec + offset_tt;
     if( ((settings.log_rot == LOGROT_LINE) && (log_lines == settings.log_lines))
      || ((settings.log_rot == LOGROT_HOURLY) && (local_tt %3600 < log_prevtt %3600))
      || ((settings.log_rot == LOGROT_DAYLY) && (local_tt %86400 < log_prevtt %86400)) ){
@@ -102,6 +98,7 @@ void logger_record(fluke_event_t *event, fluke_config_t *config)
     }
     log_prevtt = local_tt;
 
+    const fluke_auxinfo_t *auxinfo = fluke_auxinfo(config->func, event->meas.range);
     double value;
     int decimal;
     if(event->meas.over){
@@ -112,10 +109,11 @@ void logger_record(fluke_event_t *event, fluke_config_t *config)
         decimal = auxinfo->decimal;
     }
  
+    struct tm *stm = &event->timestamp.tm_local;
     // Timestamp format YY/MM/DD hh:mm:ss.sss
     fprintf(fplog, "%02d/%02d/%02d %02d:%02d:%02d.%03ld,%.*f,%s\n",
-        stm.tm_year %100, stm.tm_mon +1, stm.tm_mday,
-        stm.tm_hour, stm.tm_min, stm.tm_sec, event->time.tv_usec / 1000,
+        stm->tm_year %100, stm->tm_mon +1, stm->tm_mday,
+        stm->tm_hour, stm->tm_min, stm->tm_sec, event->timestamp.tv.tv_usec /1000,
         decimal, value, auxinfo->funcname);
 
     if(settings.flags & FL_LOGFLUSH){

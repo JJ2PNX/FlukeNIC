@@ -302,6 +302,12 @@ function initChart() {
   btn.style.backgroundColor = btnSelected;
   btn = document.getElementById('btnClear');
   btn.style.display = 'none';
+  document.getElementById('ymax').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') changeYSpanManual(true);
+  });
+  document.getElementById('ymin').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') changeYSpanManual(true);
+  });
 }
 
 function chartToggle() {
@@ -328,26 +334,47 @@ function chartAdd(value) {
       chart.data.datasets[0].data.shift();
     }
     chart.update();
+    if(!isManual){
+      const yscale = chart.scales['y-axis-0'];
+      document.getElementById('ymax').value = yscale.max;
+      document.getElementById('ymin').value = yscale.min;
+    }
   }
 }
-	    
-let isAutoscale = false;
-function changeYSpan(isManual) {
+
+let isManual = false;
+function changeYSpanManual(_isManual) {
   const btn = document.getElementById('btnAutofit');
-  if(isManual === 1){
+  if(_isManual){
+    isManual = true;
     btn.style.backgroundColor = '';
-    const ymax = parseFloat(document.getElementById('ymax').value);
-    const ymin = parseFloat(document.getElementById('ymin').value);
-    chart.options.scales.yAxes[0].ticks.max = ymax;
-    chart.options.scales.yAxes[0].ticks.min = ymin;
-    isAutoscale = false;
+    const max = parseFloat(document.getElementById('ymax').value);
+    const min = parseFloat(document.getElementById('ymin').value);
+    chart.options.scales.yAxes[0].ticks.max = max;
+    chart.options.scales.yAxes[0].ticks.min = min;
   } else {
+    isManual = false;
+    btn.style.backgroundColor = btnSelected;
     chart.options.scales.yAxes[0].ticks.max = undefined;
     chart.options.scales.yAxes[0].ticks.min = undefined;
-    btn.style.backgroundColor = btnSelected;
-    isAutoscale = true;
   }
   chart.update();
+}
+
+function adjYspan(which) {
+  const yscale = chart.scales['y-axis-0'];
+  let max = yscale.max;
+  let min = yscale.min;
+  let delta = (max - min) * 0.1;
+  switch(which){
+    case 'MaxUp': max += delta; break;
+    case 'MaxDn': max -= delta; break;
+    case 'MinUp': min += delta; break;
+    case 'MinDn': min -= delta; break;
+  }
+  document.getElementById('ymax').value = max;
+  document.getElementById('ymin').value = min;
+  changeYSpanManual(true);
 }
 
 function clearChart() {
@@ -392,7 +419,6 @@ function highlightActiveLink() {
     }
   });
 }
-
   </script>
   <script src = "/Chart.min.js"></script>
 </head>
@@ -441,6 +467,19 @@ function highlightActiveLink() {
           color: white;
           box-shadow: 0 0 12px rgba(255, 0, 0, 0.8);
         }
+        .adj-button{
+          width:18px;
+          height:16px;
+          padding:0;
+          margin:0;
+          font-size:11px;
+          line-height:11px;
+          vertical-align:middle;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          font-family:monospace;
+        }
       </style>
       <div class="display-container">
         <div class="number-box">
@@ -486,16 +525,20 @@ function highlightActiveLink() {
       </div>
       <button class="fixed-width" id="btnChart" onclick="chartToggle()">Plot</button>
       <button class="fixed-width" id="btnClear" onclick="clearChart()">Clear</button>
-      <div id="chartArea">
+      <div id="chartArea" style="margin-top:6px;">
         <div class="chart-container" style="position: relative; height: 400px; width: 90%;">
           <canvas id="myChart" width="600" height="400"></canvas>
         </div>
         <div>
           Y-Span:
           <label for='ymin'>Min</label><input class='fixed-width' type='text' id='ymin'>
+          <button class="adj-button" onclick="adjYspan('MinDn')">▼</button>
+          <button class="adj-button" onclick="adjYspan('MinUp')">▲</button>
           <label for='ymax'>Max</label><input class='fixed-width' type='text' id='ymax'>
-          <button id='changeYSpan' onclick='changeYSpan(1)'>Apply</button>
-          <button id='btnAutofit' onclick='changeYSpan(0)'>Autofit</button>
+          <button class="adj-button" onclick="adjYspan('MaxDn')">▼</button>
+          <button class="adj-button" onclick="adjYspan('MaxUp')">▲</button>
+          <button id='changeYSpan' onclick='changeYSpanManual(true)'>Apply/Man</button>
+          <button id='btnAutofit' onclick='changeYSpanManual(false)'>Autofit</button>
         </div>        
       </div>
     </div> <!-- content -->

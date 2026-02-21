@@ -26,25 +26,22 @@ function highlightActiveLink() {
   });
 }
 
-function loadItem(name, id) {
-  fetch(`/info?${name}`)
-    .then(response => {
-      if (!response.ok) {
-        return Promise.reject(`HTTP error! status: ${response.status}`);
-      }
-      return response.text();
-    })
-    .then(data => {
-      document.getElementById(id).textContent = data;
-    })
-    .catch(error => console.error('Error loadItem:', error));
+async function loadItem(name, id) {
+  const response = await fetch(`/info?${name}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  const data = await response.text();
+  document.getElementById(id).textContent = data;
 }
 
-function loadInfo() {
+async function loadInfo() {
   const targets = ['version', 'uptime', 'idfver', 'chipinfo', 'wifiap', 'txpwr', 'staip'];
-  targets.forEach(item => {
-    loadItem(item, item);
-  });
+  const n_conn = 2;
+  for (let i = 0; i < targets.length; i += n_conn) {
+    const batch = targets.slice(i, i + n_conn);
+    await Promise.all(batch.map(item => loadItem(item, item)));
+  }
 }
 
 function btnDebug(item) {

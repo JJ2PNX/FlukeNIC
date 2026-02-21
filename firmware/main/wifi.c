@@ -243,6 +243,7 @@ void wifi_start_wps(void)
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_wps_enable(&wps_config));
     ESP_ERROR_CHECK(esp_wifi_wps_start(0));
+    esp_wifi_set_max_tx_power(settings.txpwr);
     ESP_LOGI(TAG, "Waiting for wps association");
 }
 
@@ -268,6 +269,8 @@ void wifi_start(void)
     // Disable WiFi Power save
     // esp_wifi_set_ps (WIFI_PS_NONE);
     ESP_ERROR_CHECK(esp_wifi_start());
+    // Without set_max_tx_power being configured, flukenic rarely receives a break
+    // or a parity error at fast rate, probably due to RF interference ?
     esp_wifi_set_max_tx_power(settings.txpwr);
 }
 

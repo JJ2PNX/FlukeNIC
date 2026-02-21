@@ -51,7 +51,10 @@ typedef struct {
 
 typedef struct {
     fluke_event_type_t type;
-    struct timeval time;
+    struct {
+        struct timeval tv;
+        struct tm tm_local;
+    } timestamp;
     union {
         int errnum;
         fluke_meas_t meas;
