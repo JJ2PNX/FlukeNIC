@@ -122,15 +122,16 @@ typedef struct {
 esp_err_t fluke_init(int queue_size, QueueHandle_t* fluke_queue);
 void fluke_setmodel(bool is8840a_);
 void fluke_setfrst(fluke_func_t func, fluke_range_t range, fluke_speed_t speed, fluke_trig_t trig);
-void fluke_tellconfig(void);
-void fluke_trig(void);
+void fluke_tellconfig();
+void fluke_trig();
 void fluke_offset(bool on);
 void fluke_gotolocal();
 void fluke_seleftest();
-void fluke_initstate(void);
+void fluke_initstate();
 const fluke_auxinfo_t *fluke_auxinfo(fluke_func_t func, fluke_range_t range);
 void fluke_annun(fluke_annun_t which, bool on);
 void fluke_dumplast(FILE *fp);
 void fluke_msgcount(FILE *fp);
+void fluke_auxevent();
 
 #endif

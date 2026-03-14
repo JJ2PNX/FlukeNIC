@@ -659,7 +659,7 @@ void fluke_setfrst(fluke_func_t func, fluke_range_t range, fluke_speed_t speed, 
 }
 
 // Tell fluke to report current config, fluke will respond msg 0xE5
-void fluke_tellconfig(void)
+void fluke_tellconfig()
 {
     if(!registered) return;
     ESP_LOGI(TAG, "fluke_tellconfig");
@@ -672,7 +672,7 @@ void fluke_tellconfig(void)
 }
 
 // Single trigger
-void fluke_trig(void)
+void fluke_trig()
 {
     if(!registered) return;
     ESP_LOGI(TAG, "fluke_trig");
@@ -725,7 +725,7 @@ void fluke_seleftest()
 }
 
 // Set init-state, further investigation needed
-void fluke_initstate(void)
+void fluke_initstate()
 {
     if(!registered) return;
     ESP_LOGI(TAG, "fluke_initstate");
@@ -819,4 +819,18 @@ void fluke_msgcount(FILE *fp)
     }
     fprintf(fp, "Msg unknown Count=%d\n", unknown_hostmsg_count);
     fprintf(fp, "Msg queue full Count=%d\n", msgq_full_count);
+}
+
+void fluke_auxevent()
+{
+    fluke_event_t event;
+    event.type = EVENT_AUX;
+    set_timestamp(&event);
+    if(xQueueSendToBack(rxqueue, &event, 0) == errQUEUE_FULL){
+        // Force queue clear if append failed
+        // This mostly occurs when SD card writing falls behind during FAST rate
+        xQueueReset(rxqueue);
+        xQueueSendToBack(rxqueue, &event, 0);
+        ESP_LOGW(TAG, "Event queue reset");
+    }
 }
