@@ -50,7 +50,7 @@
 #endif
 
 static const char *TAG = "Http";
-static const char *Version = "1.05";
+static const char *Version = "1.06";
 
 ///////////////////////////////////////////////////////////////////////
 // Common

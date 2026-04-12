@@ -30,7 +30,6 @@ static void nettime_notify_cb(struct timeval *tv)
         ESP_LOGI(TAG, "Sync completed, Set RTC");
         rtc_pcf2129_systohc();
         sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
-        //esp_sntp_stop();
     }
 }
 
@@ -38,6 +37,9 @@ static void nettime_notify_cb(struct timeval *tv)
 
 void nettime_set(const char *timeserver)
 {
+    static bool firsttime = true;
+    if(!firsttime) return;
+    firsttime = false;
     ESP_LOGI(TAG, "nettime_set");
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(TIMESERVER);
     if(timeserver){

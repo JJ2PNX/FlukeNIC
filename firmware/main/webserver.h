@@ -4,6 +4,10 @@
 #include <esp_http_server.h>
 
 extern int extsrc;
+// extsrc definition (@measure.html)
+// positive value indicates timer interval
+#define EXTSRC_BNC_POS (-1)
+#define EXTSRC_BNC_NEG (-2)
 httpd_handle_t start_webserver(void);
 esp_err_t stop_webserver(httpd_handle_t server);
 esp_err_t ws_send_fluke_event(httpd_handle_t server, fluke_event_t event);

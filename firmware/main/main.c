@@ -127,7 +127,7 @@ static void extrig_task(void *params)
         if(xQueueReceive(interruptQueue, &pinNumber, pdMS_TO_TICKS(100))){
             if(config_last.flags & FL_EXTRIG && extsrc < 0){
                 int level = gpio_get_level(pinNumber);
-                if( (extsrc == -1 && level == 1) || (extsrc == -2 && level == 0)){
+                if( (extsrc == EXTSRC_BNC_POS && level == 1) || (extsrc == EXTSRC_BNC_NEG && level == 0)){
                     // BNC Trig
                     fluke_trig();
                 }

@@ -28,6 +28,7 @@
 #include "esp_wps.h"
 #include "esp_event.h"
 #include "nvs_flash.h"
+#include "esp_timer.h"
 #include <string.h>
 #include "fluke.h"
 #include "settings.h"
@@ -44,9 +45,30 @@
 static const char *TAG = "WiFi";
 static esp_wps_config_t wps_config = WPS_CONFIG_INIT_DEFAULT(WPS_MODE);
 static wifi_config_t wps_ap_creds[MAX_WPS_AP_CRED];
-static int s_ap_creds_num = 0;
 static int s_retry_num = 0;
 static bool is_wps = false;
+static esp_timer_handle_t retry_timer;
+
+static int n_retry = 0;
+static void retry_timer_cb(void *arg)
+{
+    ESP_LOGI(TAG, "Retrying WiFi connect %d ...", n_retry++);
+    esp_wifi_disconnect();
+    esp_wifi_connect();
+}
+
+static void start_retry_timer(void)
+{
+    ESP_LOGI(TAG, "Delaying WiFi retry %d ...", n_retry);
+    esp_timer_stop(retry_timer);
+    esp_timer_start_periodic(retry_timer, 10 * 1000 * 1000);
+}
+
+static void stop_retry_timer(void)
+{
+    esp_timer_stop(retry_timer);
+    n_retry = 0;
+}
 
 // STA 成功 CHANNEL_CHANGE, START, CHANNEL_CHANGE, STA_CONNECTED
 // STA 失敗 CHANNEL_CHANGE, START, DISCONNECTED, DISCONNECTED 
@@ -70,10 +92,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
                 s_retry_num++;
                 ESP_LOGI(TAG, "retry to connect to the AP(%d/%d)",s_retry_num, MAX_RETRY_ATTEMPTS);
             } else {
-                ESP_LOGI(TAG, "Failed to connect!");
-                // xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-                //ESP_ERROR_CHECK(esp_wifi_stop() );
-                //ESP_ERROR_CHECK(esp_wifi_deinit());
+                start_retry_timer();
             }
             break;
         case WIFI_EVENT_STA_WPS_ER_SUCCESS:
@@ -81,11 +100,9 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             {
                 wifi_event_sta_wps_er_success_t *evt =
                     (wifi_event_sta_wps_er_success_t *)event_data;
-                int i;
-
                 if (evt) {
-                        s_ap_creds_num = evt->ap_cred_cnt;
-                    for (i = 0; i < s_ap_creds_num; i++) {
+                    int s_ap_creds_num = evt->ap_cred_cnt;
+                    for (int i = 0; i < s_ap_creds_num; i++) {
                         memcpy(wps_ap_creds[i].sta.ssid, evt->ap_cred[i].ssid,
                                sizeof(evt->ap_cred[i].ssid));
                         memcpy(wps_ap_creds[i].sta.password, evt->ap_cred[i].passphrase,
@@ -123,8 +140,6 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             ESP_LOGI(TAG, "WIFI_EVENT_STA_WPS_ER_TIMEOUT");
             ESP_ERROR_CHECK(esp_wifi_wps_disable());
             fluke_annun(ANNUN_SRQ, false); // Turn off SRQ for WPS end
-            //ESP_ERROR_CHECK(esp_wifi_wps_enable(&wps_config));
-            //ESP_ERROR_CHECK(esp_wifi_wps_start(0));
             break;
         case WIFI_EVENT_STA_WPS_ER_PIN:
             ESP_LOGI(TAG, "WIFI_EVENT_STA_WPS_ER_PIN");
@@ -159,7 +174,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             ESP_LOGI(TAG, "WIFI_EVENT_AP_PROBEREQRECVED");
             break;
         default:
-            ESP_LOGI(TAG, "EVENT %ld not handled", event_id);
+            ESP_LOGI(TAG, "EVENT %ld Unexpected", event_id);
             break;
     }
 }
@@ -168,6 +183,8 @@ static void got_ip_event_handler(void* arg, esp_event_base_t event_base, int32_t
 {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG, "got ip=" IPSTR, IP2STR(&event->ip_info.ip));
+    stop_retry_timer();
+    s_retry_num = 0;
 }
 
 static void wifi_setup_sta(void)
@@ -227,7 +244,6 @@ static void wifi_setup_ap(void)
     ESP_ERROR_CHECK(esp_netif_get_ip_info(netif_ap, &ip_info));
     ip_info.gw.addr = 0;
     ESP_ERROR_CHECK(esp_netif_set_ip_info(netif_ap, &ip_info));
-
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config_ap));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(netif_ap));
 }
@@ -252,6 +268,13 @@ void wifi_start(void)
     ESP_LOGI(TAG, "wifi_start");
     is_wps = false;
     s_retry_num = 0;
+    const esp_timer_create_args_t timer_args = {
+        .callback = retry_timer_cb,
+        .arg = NULL,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "wifi_retry"
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &retry_timer));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &got_ip_event_handler, NULL));
 
@@ -269,8 +292,6 @@ void wifi_start(void)
     // Disable WiFi Power save
     // esp_wifi_set_ps (WIFI_PS_NONE);
     ESP_ERROR_CHECK(esp_wifi_start());
-    // Without set_max_tx_power being configured, flukenic rarely receives a break
-    // or a parity error at fast rate, probably due to RF interference ?
     esp_wifi_set_max_tx_power(settings.txpwr);
 }
 

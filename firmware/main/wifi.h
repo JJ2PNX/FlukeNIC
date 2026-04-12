@@ -3,7 +3,7 @@
 
 #define WIFI_TXPWR_MIN  8   // (2dBm)
 #define WIFI_TXPWR_MAX  84  // (21dBm)
-#define WIFI_TXPWR_DEF  40  // (10dBm)
+#define WIFI_TXPWR_DEF  WIFI_TXPWR_MAX
 
 void wifi_start(void);
 void wifi_start_wps(void);
